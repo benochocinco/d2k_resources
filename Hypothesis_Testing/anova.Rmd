@@ -1,0 +1,142 @@
+---
+title: "ANOVA Example"
+author: "D2K Course Staff"
+date: "`r format(Sys.time(), '%B %d %Y')`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+library(knitr) # We need the knitr package to set chunk options
+library(tidyverse)
+
+# Set default knitr options for knitting code into the report:
+opts_chunk$set(echo=TRUE,  # change to FALSE to keep code out of the knitted document
+               cache=FALSE, # re-run code that has already been run?
+               autodep=TRUE, # assure that caching dependencies are updated correctly
+               cache.comments=FALSE, # do not re-run a chunk if only comments are changed
+               message=FALSE, # change to FALSE to keep messages out of the knitted document
+               warning=FALSE,  # change to FALSE to keep warnings out of the knitted document
+               comment = NA,
+               tidy.opts=list(width.cutoff=65))
+
+theme1 <- theme_bw() +
+  theme(axis.text = element_text(size = 8, colour = "#6b3447"),
+        axis.title = element_text(size = 10, colour = "#2f2f63"),
+        legend.title = element_text(size = 8, colour = "#2f2f63"),
+        legend.text = element_text(size = 8, colour = "#6b3447"), 
+        title = element_text(size = 12, colour = "#2f2f63"), 
+        axis.ticks = element_line(colour = "#6b3447"),
+        plot.caption = element_text(size = 8, colour = "#2f2f63"),
+        plot.subtitle = element_text(size = 10, colour = "#2f2f63"))
+```
+
+# Data
+
+Below, we show an example of how to run ANOVA tests. This is done on the `iris` data set, which contains data on 3 different species of iris flowers. 
+
+```{r}
+data(iris)
+head(iris)
+```
+
+In this data set, `Species` is a categorical variable, while the sepal and petal lengths and widths are continuous variables.
+
+\newpage
+
+# One-Way ANOVA
+
+The one-way ANOVA is used to test the equivalence of means of a response for different categories of a single predictor variable. The response variable must be continuous, and the predictor must be categorical. The assumptions of all ANOVA tests, including the variants listed below:
+
+\begin{itemize}
+    \item The population follows a normal distribution.
+    \item Samples are independent.
+    \item The variance of the response variable is the same between groups.
+\end{itemize} However, mild violations of these assumptions are ok. 
+
+In the code below, we use a one-way ANOVA to test if there is a difference between the means of the sepal length between the three different species. (Checking the assumptions of the model is skipped.) In this case, we would be running the hypothesis test:
+
+
+$H_0$: The mean sepal length for all 3 species is the same.
+
+$H_a$: The mean sepal lengths are not all the same for the 3 species.
+
+
+```{r}
+# Run ANOVA
+an <- anova(lm(Sepal.Length ~ Species, data = iris))
+
+an
+```
+
+As we see in the summary, the p-value for the `Species` variable is extremely small, meaning that there is a statistically significant difference between the sepal lengths for the 3 different iris species. (Note that this does not tell us anything about how they are different, only that a difference exists!)
+
+\newpage
+
+# Two-Way ANOVA
+
+The two-way ANOVA is used to test the equivalence of means for different categories of two predictor variable. For the following example, we first create a binary category variable based on petal width.
+
+```{r}
+# New categorical variable
+iris$Petal.Width.Bin <- ifelse(iris$Petal.Width > 1, 0, 1)
+```
+
+In the code below, we use a two-way ANOVA to test if there is a difference between the means of the sepal length between the three different species and two different petal width categories. (Checking the assumptions of the model is skipped.) In this case, we would be running the hypothesis test:
+
+
+$H_0$: The mean sepal length for all 3 species and two petal width categories is the same.
+
+$H_a$: The mean sepal lengths are not all the same for the 3 species and/or two petal width categories.
+
+```{r}
+# Run ANOVA
+an <- anova(lm(Sepal.Length ~ Species + Petal.Width.Bin, data = iris))
+
+an
+```
+
+As we see in the summary, the p-values for the `Species` variable and the `Petal.Width.Bin` variable are extremely small, meaning that there is a statistically significant difference between the sepal lengths for the 3 different iris species and the two petal width categories. 
+
+\newpage
+
+# MANOVA
+
+A MANOVA model simply runs simultaneous ANOVA tests on multiple continuous response variables. In the code below, we use aa MANOVA test to see if there is a difference between the means of the sepal length and/or sepal widths between the three different species. (Checking the assumptions of the model is skipped.) In this case, we would be running the hypothesis test:
+
+
+$H_0$: The mean sepal lengths and widths for all 3 species are the same.
+
+$H_a$: The mean sepal lengths and/or widths are not all the same for the 3 species.
+
+```{r}
+# Run MANOVA
+man <- manova(cbind(Sepal.Length, Sepal.Width) ~ Species, data = iris)
+
+summary(man)
+```
+
+As we see in the summary, the p-value for the `Species` variable is extremely small, meaning that there is a statistically significant difference between the sepal lengths and/or for the 3 different iris species. (Note that this does not tell us anything about whether sepal lengths, sepal widths, or both are different!)
+
+\newpage
+
+# ANCOVA
+
+An ANCOVA is used to test if the equivalence of means of a response for different categories of a predictor variable, conditional on other quantitative variables. The response and covariates are continuous, and the predictor is categorical.  
+
+The code below tests the hypothesis:
+
+$H_0$: The mean sepal length for all 3 species is the same given the petal lengths.
+
+$H_a$: The mean sepal lengths are not all the same for the 3 species given the petal lengths.
+
+Note that it is important for the variable of interest to be the last one in the formula.
+
+```{r}
+# Run ANCOVA
+anc <- anova(lm(Sepal.Length ~ Petal.Length + Species, data = iris))
+
+anc
+```
+
+As we see in the summary, the p-value for the `Species` variable is extremely small, meaning that there is a statistically significant difference between the sepal lengths for the 3 different iris species once we condition on petal length.
+

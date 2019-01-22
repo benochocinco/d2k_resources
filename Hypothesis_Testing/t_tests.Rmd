@@ -1,0 +1,110 @@
+---
+title: "T-testing Example"
+author: "D2K Course Staff"
+date: "`r format(Sys.time(), '%B %d %Y')`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+library(knitr) # We need the knitr package to set chunk options
+library(tidyverse)
+
+# Set default knitr options for knitting code into the report:
+opts_chunk$set(echo=TRUE,  # change to FALSE to keep code out of the knitted document
+               cache=FALSE, # re-run code that has already been run?
+               autodep=TRUE, # assure that caching dependencies are updated correctly
+               cache.comments=FALSE, # do not re-run a chunk if only comments are changed
+               message=FALSE, # change to FALSE to keep messages out of the knitted document
+               warning=FALSE,  # change to FALSE to keep warnings out of the knitted document
+               comment = NA,
+               tidy.opts=list(width.cutoff=65))
+
+theme1 <- theme_bw() +
+  theme(axis.text = element_text(size = 8, colour = "#6b3447"),
+        axis.title = element_text(size = 10, colour = "#2f2f63"),
+        legend.title = element_text(size = 8, colour = "#2f2f63"),
+        legend.text = element_text(size = 8, colour = "#6b3447"), 
+        title = element_text(size = 12, colour = "#2f2f63"), 
+        axis.ticks = element_line(colour = "#6b3447"),
+        plot.caption = element_text(size = 8, colour = "#2f2f63"),
+        plot.subtitle = element_text(size = 10, colour = "#2f2f63"))
+```
+
+# Data
+
+Below, we show an example of how to run two sample t-tests as well as two sample proportion tests. This is done on the `iris` data set, which contains data on 3 different species of iris flowers. 
+
+```{r}
+data(iris)
+head(iris)
+```
+
+In this data set, `Species` is a categorical variable, while the sepal and petal lengths and widths are continuous variables. For this data set, we will be comparing the `setosa` and `viginica` species, so we create subsets of the data:
+
+```{r}
+library(dplyr)
+
+iris_setosa <- dplyr::filter(iris, Species == 'setosa')
+iris_virginica <- dplyr::filter(iris, Species == 'virginica')
+```
+
+
+\newpage
+
+# Two-Sample T-test
+
+The two-sample t-test is used to compare the means of two groups of samples. For example, say we are interested in testing if the mean sepal length is the same for the `setosa` and `viginica` species in the `iris` data set. Formally, we are running a hypothesis test with:
+
+$H_0$: The mean sepal lengths for the `setosa` and `viginica` species are the same.
+
+$H_a$: The mean sepal lengths for the `setosa` and `viginica` species are different.
+
+The assumptions for the t-test are:
+
+\begin{itemize}
+    \item The population follows a normal distribution.
+    \item Samples are independent.
+    \item The samples are representative of the population.
+\end{itemize} 
+
+The two-sample t-test can be run under the assumption that the population variances are equal between the two groups, or not. (The former is also known as a "pooled variance" test while the latter is known as an "unpooled variance" test.) The results of both are shown below: 
+
+```{r}
+# Equal variance
+t.test(iris_setosa$Sepal.Length, iris_virginica$Sepal.Length,
+       var.equal = TRUE)
+
+# Unequal variance
+t.test(iris_setosa$Sepal.Length, iris_virginica$Sepal.Length,
+       var.equal = FALSE)
+```
+
+Notice that the confidence intervals are slightly different between the two tests. However, in both of these cases, the listed p-value is extremely small, meaning that there is a significant difference between the sepal lengths for the `setosa` and `viginica` species. (Note: in the real world, only one test should be chosen and should be done so before the test is run.) 
+
+\newpage
+
+# Two-Sample Proportion Test
+
+The two-sample proportion test is used to compare the proportions of a binary categorical variable of two groups of samples. For example, say we want to test the hypothesis:
+
+$H_0$: The proportions of sepal widths greater than 3 cm for the `setosa` and `viginica` species are the same.
+
+$H_a$: The proportions of sepal widths greater than 3 cm for the `setosa` and `viginica` species are different.
+
+The assumptions for two-sample proportions test are:
+
+\begin{itemize}
+    \item Samples are not a substantial proportion of the entire population for both groups.
+    \item Samples are independent.
+    \item There are a sufficient number of successes and failures in each group.
+\end{itemize} 
+
+First, we have to calculate the propotions:
+
+```{r}
+# Calculate proportions
+prop.test(c(sum(iris_setosa$Sepal.Width > 3), sum(iris_virginica$Sepal.Width > 3)), 
+          c(nrow(iris_setosa), nrow(iris_virginica)))
+```
+
+The listed p-value is extremely small, meaning that there is a significant difference between the proportions of flower sepal widths that are above 3 cm for the `setosa` and `viginica` species.
