@@ -1,6 +1,6 @@
 ---
 title: "Data Cleaning & Wrangling Example"
-author: "Ben Herndon-Miller & Tianyi Yao"
+author: "D2K Course Staff"
 date: "1/15/2019"
 output: pdf_document
 ---
