@@ -140,3 +140,12 @@ anc
 
 As we see in the summary, the p-value for the `Species` variable is extremely small, meaning that there is a statistically significant difference between the sepal lengths for the 3 different iris species once we condition on petal length.
 
+\newpage
+
+# What Next?
+
+Say we have run an ANOVA and rejected the null that the means between categories are the same. We still do not know which ones are different. The next step should be running pairwise t-tests, remembering to correct for multiple comparisions, to identify specifically which means are different.
+
+# What If My Data Are Non-Gaussian?
+
+In this case, we would want to use a nonparametric hypothesis test, such as the Mann-Whitney U test or the Kruskal-Wallis test. This is covered in a separate example.

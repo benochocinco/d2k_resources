@@ -1,0 +1,82 @@
+---
+title: "Nonparametrc Hypothesis Testing Example"
+author: "D2K Course Staff"
+date: "`r format(Sys.time(), '%B %d %Y')`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+library(knitr) # We need the knitr package to set chunk options
+library(tidyverse)
+
+# Set default knitr options for knitting code into the report:
+opts_chunk$set(echo=TRUE,  # change to FALSE to keep code out of the knitted document
+               cache=FALSE, # re-run code that has already been run?
+               autodep=TRUE, # assure that caching dependencies are updated correctly
+               cache.comments=FALSE, # do not re-run a chunk if only comments are changed
+               message=FALSE, # change to FALSE to keep messages out of the knitted document
+               warning=FALSE,  # change to FALSE to keep warnings out of the knitted document
+               comment = NA,
+               tidy.opts=list(width.cutoff=65))
+
+theme1 <- theme_bw() +
+  theme(axis.text = element_text(size = 8, colour = "#6b3447"),
+        axis.title = element_text(size = 10, colour = "#2f2f63"),
+        legend.title = element_text(size = 8, colour = "#2f2f63"),
+        legend.text = element_text(size = 8, colour = "#6b3447"), 
+        title = element_text(size = 12, colour = "#2f2f63"), 
+        axis.ticks = element_line(colour = "#6b3447"),
+        plot.caption = element_text(size = 8, colour = "#2f2f63"),
+        plot.subtitle = element_text(size = 10, colour = "#2f2f63"))
+```
+
+# Introduction
+
+Below, we introduce non-parametric versions of the two sample t-test and the ANOVA test. This is primarily used when the assumption of normality of the distribution of data within groups is severly violated. These tests instead use a rank-based approach to determine whether two or more groups follow the same distribution. As in ANOVA tests, we use this in a setting where we want to run a hypothesis test on a continuous response variable with a categorical predictor variable.
+
+Below, we will analyze the `Rabbit` data set in the `MASS` library. We will be comparing the change in blood pressure in rabbits (`BPChange`) based on different categorical variables in the data set.
+
+```{r}
+library(MASS)
+data(Rabbit)
+head(Rabbit)
+```
+
+\newpage
+
+# Mann-Whitney U Test
+
+(This is also known as the Mann-Whitney-Wilcoxon test or Wilcoxon rank-sum test, which explains the name of the function in R.) The Mann-Whitney U test is used to compare the distribution of two (and only two) groups. Again, this does not require a normality assumption, but still requires the assumption of the independence of the groups. The test also requires there to be no ties in the response variable. 
+
+Here, we compare the difference in the distribution of blood pressure changes between the two treatment groups, control and experimental (ignoring the effect of other variables). In order to fix the issue with ties, we use the `jitter` function to add a tiny bit of noise. (This shouldn't impact results as long as the added jitter is relatively small in magnitude. If worried about the impact that adding random noise will have on the results, the test can be rerun with different jitter values.) Formally, our hypothesis is:
+
+$H_0$: The distribution of blood pressure changes between the control and experimental treatments is the same. 
+
+$H_a$: The distribution of blood pressure changes between the control and experimental treatments is different. 
+
+```{r}
+set.seed(619)
+Rabbit$BPchange <- jitter(Rabbit$BPchange)
+wilcox.test(Rabbit$BPchange ~ Rabbit$Treatment)
+```
+
+Since the p-value is large, we would probably conclude that there is not enough statistical evidence to say that the distribution of blood pressure changes between the control and experimental treatments is different.
+
+\newpage
+
+# Kruskal-Wallis Test
+
+The Kruskal-Wallis test is an extension of the Mann-Whitney U test to more than 2 groups, analagous to how ANOVA on group means is an extension of the t-test to more than 2 groups. As above, normality is not required, but we can not have ties in the response variable. 
+
+Here, we compare the difference in the distribution of blood pressure changes between the five different rabbits in the data, again ignoring the effect of other variables. (Please do not do this in real-world scenarios - the effects of other variables should be taken in to account when doing actual hypothesis testing; in this case, we would almost certainly want to condition on treatment and dosage. This would probably require a regression model.) Formally, our hypothesis is:
+
+$H_0$: The distribution of blood pressure changes between all the rabbits is the same. 
+
+$H_a$: The distribution of blood pressure changes between all the rabbits is different. 
+
+```{r}
+kruskal.test(Rabbit$BPchange ~ Rabbit$Animal)
+```
+
+The p-value again is very large, meaning we do not have enough evidence to reject the null hypothesis that the distribution of blood pressure changes are the same for all 5 rabbits.
+
