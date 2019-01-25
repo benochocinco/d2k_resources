@@ -1,0 +1,149 @@
+---
+title: "Mixed Effects Models"
+author: "D2K Course Staff"
+date: "`r format(Sys.time(), '%B %d %Y')`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+library(knitr) # We need the knitr package to set chunk options
+library(tidyverse)
+
+# Set default knitr options for knitting code into the report:
+opts_chunk$set(echo=TRUE,  # change to FALSE to keep code out of the knitted document
+               cache=FALSE, # re-run code that has already been run?
+               autodep=TRUE, # assure that caching dependencies are updated correctly
+               cache.comments=FALSE, # do not re-run a chunk if only comments are changed
+               message=FALSE, # change to FALSE to keep messages out of the knitted document
+               warning=FALSE,  # change to FALSE to keep warnings out of the knitted document
+               comment = NA,
+               tidy.opts=list(width.cutoff=65))
+
+theme1 <- theme_bw() +
+  theme(axis.text = element_text(size = 8, colour = "#6b3447"),
+        axis.title = element_text(size = 10, colour = "#2f2f63"),
+        legend.title = element_text(size = 8, colour = "#2f2f63"),
+        legend.text = element_text(size = 8, colour = "#6b3447"), 
+        title = element_text(size = 12, colour = "#2f2f63"), 
+        axis.ticks = element_line(colour = "#6b3447"),
+        plot.caption = element_text(size = 8, colour = "#2f2f63"),
+        plot.subtitle = element_text(size = 10, colour = "#2f2f63"))
+```
+
+# Introduction
+
+Mixed effects models are often used in cases where we want to take repeated measurements or nuisance variables in to account without treating them as a fixed variable in the final model. The model will generally look something like: $$Y_i = \mu + \alpha Z_{j(i)}+ \beta X_i + \epsilon_i, i \in 1, ..., n, j \in 1, ..., m.$$ $$\epsilon_i \sim N(0, \sigma^2)$$ In this case, we have $n$ total individual observations which are each in one of $m$ groups of a variable in the data. The $x_i$ are called fixed effects and are the variables that we want to measure the effect of in our final model. The $Z_{j(i)}$ are the random effects that we want to account for but do not wish to do inference on; each individual $i$ is a member of one of the groups $j$. $\mu$ is the intercept term that we normally include in regression models.
+
+This will probably make more sense with the example below. We will analyze the `nlschools` data set from the `MASS` package, which contains data from students in schools in the Netherlands. The variables in the data:
+
+- `lang`: language test score.
+- `IQ`: verbal IQ score.
+- `class`: class ID.
+- `GS`: class size.
+- `SES`: socioeconomic status.
+- `COMB`: multi-grade class?
+
+We will use the `lme4` package to fit our mixed effects models.
+
+\newpage
+
+```{r}
+library(MASS)
+#?nlschools
+data(nlschools)
+head(nlschools)
+```
+
+# Intuition
+
+Say for the `nlschools` data we want to predict a student's language test score based on their verbal IQ score, controlling for the other variables in the data set. However, it seems that students were sampled in blocks from individiual classes. Thus, we have repeated measures on individuals from the same class. This would be a case where we would include class ID as a random effect. We certainly want to take the class ID in to account in our model, as there may be class-level effects on the language test score that are not directly measured in the other variables in the data; perhaps the teachers for certain classes are better or worse than others, or perhaps some classes are honors-level courses while others are remedial level. Indeed, the plots below appear to show that the relationship between a student's language test score and their verbal IQ score appears to be different for the different classes However, because of block sampling scheme, we can't just include this as a fixed effect since these class IDs do not represent all possible classrooms in the Netherlands. In particular, if we wanted to predict for a student in a new class not in the data, a model with class ID as a fixed effect could not be used. Thus, we include class ID as a random effect.
+
+```{r}
+ggplot(data = nlschools[1:151, ]) +
+  geom_point(aes(x = IQ, y = lang)) + 
+  geom_smooth(aes(x = IQ, y = lang), se = FALSE,
+              method = "lm", color = "blue") +
+  facet_wrap(~ class) + 
+  labs(title = "Effect by School") +
+  theme1
+```
+
+## How are these random effects accounted for?
+
+Random effects are most often included in a mixed effects model as a parametric distribution around a "global" underlying average effect. One might think of this as a sampling distribution for the random effect. For example, we might assume that the classroom level effect on the relationship between a student's language test score and their verbal IQ score is normally distributed with mean 0 and variance $\tau^2$ around the true underlying parameter values. 
+
+\newpage
+
+# Random Intercept
+
+The first model example we will look at is a random intercept model. This model assumes that the class-level effect changes the average language score of the individual students. Mathematically, this is:
+
+$$Y_i = \mu + \alpha_{j(i)}+ \Lambda W_i + \beta x_i + \epsilon_i, i \in 1, ..., n, j \in 1, ..., m.$$ $$\epsilon_i \sim N(0, \sigma^2), \alpha_j \sim N(0, \tau^2).$$ 
+- $\mu$ is the global intercept
+- $\alpha$ is the class-level random intercept effect
+- $x_i$ is the fixed effect of interest
+- $W_i$ are the individual level covariates
+- $\epsilon_i$ is the individual level error
+
+The results are shown below. Note the syntax of the formula - we specify a random intercept by adding `(1|class)`. We can see the estimates for the coefficients for `IQ` as well as the covariates under "Fixed effects:", and we can see the estimates for $\tau^2$ and $\sigma^2$ under "Random effects:". 
+
+```{r}
+library(lme4)
+
+model1 <- lmer(lang ~ IQ + GS + SES + COMB + (1|class), data = nlschools)
+summary(model1)
+```
+
+\newpage
+
+# Random Slope
+
+The first model example we will look at is a random intercept model. This model assumes that the class-level effect changes the linear relationship between the language score and verbal IQ of the individual students. Mathematically, this is:
+
+$$Y_i = \mu + \alpha_{j(i)}x_i+ \Lambda W_i + \beta x_i + \epsilon_i, i \in 1, ..., n, j \in 1, ..., m.$$ $$\epsilon_i \sim N(0, \sigma^2), \alpha_j \sim N(0, \tau^2).$$ 
+- $\mu$ is the global intercept
+- $\alpha$ is the class-level random slope effect
+- $x_i$ is the fixed effect of interest
+- $W_i$ are the individual level covariates
+- $\epsilon_i$ is the individual level error
+
+The results are shown below. We specify a random slope WITHOUT a random intercept by adding `(IQ - 1|class)`. Again, we can see the estimates for the coefficients for `IQ` as well as the covariates under "Fixed effects:", and we can see the estimates for $\tau^2$ and $\sigma^2$ under "Random effects:". 
+
+```{r}
+library(lme4)
+
+model2 <- lmer(lang ~ IQ + GS + SES + COMB + (IQ - 1|class), data = nlschools)
+summary(model2)
+```
+
+\newpage
+
+# Extensions
+
+Obviously, we can add more random effects to the model. In the particular example above, we could add both a random slope and intercept at the class level using `(IQ|class)`. We could have multiple levels of hierarchies (e.g., students within classes within schools within districts...) We could also use different distributions or parameterizations for the random effects. The possibilities are endless!
+
+# Model Comparison & Inference
+
+We should not use the t-values returned by `lmer` to do statistical inference. Period. Instead, we should use some sort of likelihood ratio testing between different potential models. There are a couple of methods to do this:
+
+## ANOVA
+
+ANOVA can be used in situations where we want to test for the statistical significance of individual or sets of variables. This is done by fitting 2 models: one with the variable(s) of interest and one without. These are then compared formally using an F-test, one of the classic likelihood ratio tests. The key in this case is that one model is nested in the other. meaning that the variables included in the smaller model must be a subset of the variables included in the larger model. Below, we fit a model without `IQ` before we run the ANOVA
+
+```{r}
+model3 <- lmer(lang ~ GS + SES + COMB + (1|class), data = nlschools)
+anova(model3, model1)
+```
+
+The results are shown above. In this example, the model with `IQ` is significantly better than the one without, based on the p-value from the ANOVA output.
+
+## AIC/BIC
+
+Infromation criterion tests are used in the case where we do not have nested models. The upside is, of course, that we can more flexibly compare two models. The downside is that there is no formal statistical test or standard for these types of tests to show that one model is definitively better than the other. We can say in general that a smaller AIC or BIC is better; by most standards, a difference of 6 is generally considered enough evidence that one model is better than another.
+
+```{r}
+AIC(model3, model1)
+BIC(model3, model1)
+```
+
+For both of these criteria, the AIC and BIC of the model without `IQ` is much larger than the respective measures on the model with `IQ`. There is almost certainly enough evidence to say that the model with `IQ` is better.
