@@ -116,11 +116,8 @@ model2 <- lmer(lang ~ IQ + GS + SES + COMB + (IQ - 1|class), data = nlschools)
 summary(model2)
 ```
 
+
 \newpage
-
-# Extensions
-
-Obviously, we can add more random effects to the model. In the particular example above, we could add both a random slope and intercept at the class level using `(IQ|class)`. We could have multiple levels of hierarchies (e.g., students within classes within schools within districts...) We could also use different distributions or parameterizations for the random effects. The possibilities are endless!
 
 # Model Comparison & Inference
 
@@ -147,3 +144,11 @@ BIC(model3, model1)
 ```
 
 For both of these criteria, the AIC and BIC of the model without `IQ` is much larger than the respective measures on the model with `IQ`. There is almost certainly enough evidence to say that the model with `IQ` is better.
+
+\newpage
+
+# Extensions
+
+Obviously, we can add more random effects to the model. In the particular example above, we could add both a random slope and intercept at the class level using `(IQ|class)`. Our data could have multiple levels of hierarchies (e.g., students within classes within schools within districts...) to add as random effects. We could also use different distributions or parameterizations for the random effects. The possibilities are endless!
+
+Mixed effects models can also be applied to regression models outside of ordinary linear regressions. In particular, `glmer` in the `lme4` package allows for gernerlized linear mixed effects models (analagous to the `glm` extension of `lm`).
