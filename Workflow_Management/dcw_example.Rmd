@@ -1,0 +1,337 @@
+---
+title: "Data Cleaning & Wrangling Example"
+author: "D2K Course Staff"
+date: "1/15/2019"
+output: pdf_document
+---
+
+# Initial Working Example
+
+## Load Data
+
+```{r}
+# Load libraries
+library(dplyr)
+
+# Read in drinks data set
+drinks <- read.csv("data/drinks.csv", header = TRUE, stringsAsFactors = FALSE)
+
+# Read in life expectancy data set
+life_exp <- read.csv("data/lifeexpectancy.csv", header = TRUE, stringsAsFactors = FALSE)
+```
+
+## Clean Drinks Data
+
+### Examine Dataset
+
+We look at the head of the dataset in order to examine column names and get a sense of what the data looks like.
+
+```{r}
+head(drinks)
+```
+
+We can see that the far right column is empty. This is a variable that we will be calculating from other variables. However, we need to understand if there is any missing data in the columns we will be using to calculate total_litres_of_pure_alcohol.
+
+```{r}
+drinks[is.na(drinks[,2:4]),]
+```
+
+### Calculate new features from the data
+
+We see that there are no NA values in our dataset, thus we continue and calculate the total_litres_of_pure_alchol by multiplying the number of servings of alcohol by the standard number of litres of pure alcohol per serving in order to calculate total consumption by country (https://www.niaaa.nih.gov/alcohol-health/overview-alcohol-consumption/what-standard-drink). 
+
+```{r}
+# Calculate total litres
+drinks$total_litres_of_pure_alcohol <- (drinks$beer_servings + drinks$spirit_servings + drinks$wine_servings)*0.017744
+```
+
+Uh-oh! There must be something wrong with the data as it stands. Let us investigate further...
+
+```{r}
+summary(drinks)
+```
+
+Hmmm... it seems as if all of the variables we know to be numeric are of the type "character". Why could this be? At this point, it is important to look at the entire dataset to discover the discrepancy. We make an interesting observation...
+
+```{r}
+drinks[drinks[,2] == "?" | drinks[,3] == "?" | drinks[,4] == "?",]
+```
+
+We can see that missing values are represented by "?". When working with missing data it is important to represent it in a consistent way. We choose to replace the "?" with "NA" values as it makes it easier to work with in R. Additionally, we convert the columns to numeric now that we have removed the question marks that coerced the entire column into character.
+
+```{r}
+# Replace ? values with NA
+drinks[drinks == "?"] <- NA
+
+# Convert columns from character to numeric
+drinks$beer_servings <- as.numeric(drinks$beer_servings)
+drinks$spirit_servings <- as.numeric(drinks$spirit_servings)
+drinks$wine_servings <- as.numeric(drinks$wine_servings)
+```
+
+Now we can calculate total_litres_of_pure_alcohol consumed for each country.
+
+```{r}
+# Calculate total litres
+drinks$total_litres_of_pure_alcohol <- (drinks$beer_servings + drinks$spirit_servings + drinks$wine_servings)*0.017744
+```
+
+Let's examine what data is missing at this point...
+
+```{r}
+drinks[is.na(drinks$total_litres_of_pure_alcohol),]
+```
+
+Since we are only concerned with total alcohol consumption, we only have to worry about dealing with the missing data points in the total_litres_of_pure_alcohol column. There are many ways to deal with missing data, and there is no ideal way to deal with it, but we can do our best with what we have. Since alcohol consumption is publicly available data that is recorded by international organizations such as WHO, we can find the missing data on the internet via a quick google search (https://www.who.int/gho/countries/en/).
+
+For more about dealing with missing data, please check out the following resource: https://towardsdatascience.com/how-to-handle-missing-data-8646b18db0d4.
+
+```{r}
+# Replace missing data from research
+drinks$total_litres_of_pure_alcohol[drinks$country == "Bahamas"] <- 6.9
+drinks$total_litres_of_pure_alcohol[drinks$country == "Denmark"] <- 11.4
+drinks$total_litres_of_pure_alcohol[drinks$country == "Macedonia"] <- 6.7
+```
+
+### Engineer features
+
+An important part of creating your data pipeline and preparing your dataset for analysis is the engineering of features. Often, we find the most insight and draw the most important conclusions from features that were not explictly present in the original data. 
+
+In this case, we create an indicator variable to represent whether the total alcohol consumption per capita is above the "healthy" threshold of alcohol consumption as determined by the NIH (https://www.niaaa.nih.gov/alcohol-health/overview-alcohol-consumption/what-standard-drink).
+
+```{r}
+# Engineer feature to create indicator variable of whether consumption is above or below 7 drinks per week
+# Healthy consumption threshold = 0.017744 x 7 x 52 = 6.458816
+drinks$unhealthy_consumption <- 0
+drinks$unhealthy_consumption[drinks$total_litres_of_pure_alcohol > 6.458816] <- 1
+```
+
+
+## Clean Life Expectancy Data
+
+### Examine Dataset
+
+We look at the head of the dataset in order to examine column names and get a sense of what the data looks like.
+
+```{r}
+head(life_exp)
+```
+
+And get a summary of the variable types...
+
+```{r}
+summary(life_exp)
+```
+
+### Clean Life Expectancy Data
+
+This data is not nearly as clean as the drinks data. We see that there are multiple observations for each country and many years of data contained in the dataset. We only want to look at the most up-to-date data, so we filter to only keep the rows for the year 2013.
+
+```{r}
+# Keep only most recent measures from year 2013
+life_exp <- life_exp[life_exp$YearCode == 2013,]
+```
+
+When working with data for analysis, it is important that we are able to get it into a matrix where each row represents an observation and each column represents a feature. This requires some significant reshaping. Although there are built in functions to automatically reshape data, they often can be difficult to work with as they are not quite as flexible as writing your own code. We initialize a new data frame of the appropriate size and iterate through the country names pulling the relevant pieces of information to build our new dataset.
+
+In this particular case, we are creating a variable for each measure of life-expectancy included in the original dataset along with a column for the "WorldBankIncomeGroup" categorical variable.
+
+```{r}
+# Initialize vector of all unique countries
+countries <- unique(life_exp$CountryDisplay)
+
+# Initialize reshaped data frame with columns for each measure of life expectancy 
+life_exp_rshp <- data.frame(matrix(nrow = length(countries), ncol = 11))
+
+# Initialize and assign column names
+ler_names <- c("country", "male_birth", "male_healthy", "male_60", 
+               "female_birth", "female_healthy", "female_60",
+               "both_birth", "both_healthy", "both_60", "income")
+colnames(life_exp_rshp) <- ler_names
+
+# Iterate through countries and transform data to create a tidy dataset with one row for each country and one column for each measure of life expectancy 
+for (i in 1:length(countries)){
+  # Assign countries to "country" column
+  life_exp_rshp$country[i] <- countries[i]
+  # Assign male life expectancy values for different lifetime measures
+  life_exp_rshp$male_birth[i] <- life_exp$Numeric[life_exp$CountryDisplay == countries[i] & life_exp$SexDisplay == "Male" & life_exp$GhoDisplay == "Life expectancy at birth (years)"]
+  life_exp_rshp$male_healthy[i] <- life_exp$Numeric[life_exp$CountryDisplay == countries[i] & life_exp$SexDisplay == "Male" & life_exp$GhoDisplay == "Healthy life expectancy (HALE) at birth (years)"]
+  life_exp_rshp$male_60[i] <- life_exp$Numeric[life_exp$CountryDisplay == countries[i] & life_exp$SexDisplay == "Male" & life_exp$GhoDisplay == "Life expectancy at age 60 (years)"]
+  # Assign female life expectancy values for different lifetime measures
+  life_exp_rshp$female_birth[i] <- life_exp$Numeric[life_exp$CountryDisplay == countries[i] & life_exp$SexDisplay == "Female" & life_exp$GhoDisplay == "Life expectancy at birth (years)"]
+  life_exp_rshp$female_healthy[i] <- life_exp$Numeric[life_exp$CountryDisplay == countries[i] & life_exp$SexDisplay == "Female" & life_exp$GhoDisplay == "Healthy life expectancy (HALE) at birth (years)"]
+  life_exp_rshp$female_60[i] <- life_exp$Numeric[life_exp$CountryDisplay == countries[i] & life_exp$SexDisplay == "Female" & life_exp$GhoDisplay == "Life expectancy at age 60 (years)"]
+  # Assign life expectancy values for both sexes for different lifetime measures
+  life_exp_rshp$both_birth[i] <- life_exp$Numeric[life_exp$CountryDisplay == countries[i] & life_exp$SexDisplay == "Both sexes" & life_exp$GhoDisplay == "Life expectancy at birth (years)"]
+  life_exp_rshp$both_healthy[i] <- life_exp$Numeric[life_exp$CountryDisplay == countries[i] & life_exp$SexDisplay == "Both sexes" & life_exp$GhoDisplay == "Healthy life expectancy (HALE) at birth (years)"]
+  life_exp_rshp$both_60[i] <- life_exp$Numeric[life_exp$CountryDisplay == countries[i] & life_exp$SexDisplay == "Both sexes" & life_exp$GhoDisplay == "Life expectancy at age 60 (years)"]
+  # Assign income-level to country
+  life_exp_rshp$income[i] <- life_exp$WorldBankIncomeGroupDisplay[life_exp$CountryDisplay == countries[i] & life_exp$SexDisplay == "Both sexes" & life_exp$GhoDisplay == "Healthy life expectancy (HALE) at birth (years)"]
+}
+```
+
+Now let us examine our new re-shaped dataset...
+
+```{r}
+head(life_exp_rshp)
+```
+
+and examine the variable types...
+
+```{r}
+summary(life_exp_rshp)
+```
+
+
+### Generate Dummy Variables
+
+One thing that we can observe from the above data is that one of our variables is a categorical variable. Different functions, models, tests, etc. in R work with different formulations of categorical data. Some of these perform fine when categorical data is stored in a single column that is of a "factor" variable type. However, many of these functions require all data to be numeric. We can represent these categorical variables numerically by generating dummy variables. In general, it is good to have datasets with both formulations of categorical variables so that you are able to call whichever one you need based on the analysis you are trying to perform. We can create both of these datasets below.
+
+Note: when creating dummy variables remember that you must only create columns for $k-1$ categories to avoid issues with multicollinearity.
+
+```{r}
+# Create factor variable dataset
+life_exp_factor <- life_exp_rshp
+life_exp_factor$income <- as.factor(life_exp_factor$income)
+
+# Create dummy variable dataset
+dummys <- model.matrix(~life_exp_factor$income)
+# Exclude last column of original dataset and intercept column of dummy variables
+life_exp_dummy <- data.frame(life_exp_factor[,-ncol(life_exp_factor)], dummys[,-1])
+```
+
+## Join Datasets for Analysis
+
+Now that we have cleaned both datasets, we want to combine them to create our final dataset for analysis. Unfortunately, we must join the two datasets on the name of the country. In general, joining on character strings is not ideal as there is much more room for variation compared to distinct ID's. However, data is rarely in the form that is ideal so we will work with what we have. We attempt to join the two datasets on the country names and observe the following match rate.
+
+```{r}
+# Join datasets and calculate match rate
+model_data_factor <- left_join(life_exp_factor, drinks, by = "country")
+match_rate_before <- sum(!is.na(model_data_factor$total_litres_of_pure_alcohol))/nrow(model_data_factor)
+match_rate_before
+```
+
+This is not terrible considering we did not adust the country names at all before trying to join the two datasets. However, we can investigate the data and the names of the countries to figure out how we can match as much of the data as possible.
+
+### Refactor Country Names
+
+After inspecting the data (you can do this on your own), we notice a couple of things:
+
+* The life expectancy data uses "_" instead of "-" in country names
+* The life expectancy data uses full-length official country names which include text within parentheses
+* The drinks data uses "&" and the life expectancy data uses "and"
+
+We attempt to systematically adjust for these differences to the best of our ability and observe the new match rate.
+
+```{r}
+# Replace underscores with dashes
+life_exp_factor$country <- gsub("_", "-", life_exp_factor$country)
+
+# Remove parentheses, contents within, and space before
+life_exp_factor$country <- gsub("\\s*\\([^\\)]+\\)", "", life_exp_factor$country)
+
+# Replace Saint with St.
+life_exp_factor$country <- gsub("Saint", "St.", life_exp_factor$country)
+
+# Refactor country names for join with life expectancy data
+drinks$country <- gsub("&", "and", drinks$country)
+
+# Join datasets and calculate match rate
+model_data_factor <- left_join(life_exp_factor, drinks, by = "country")
+match_rate_sys <- sum(!is.na(model_data_factor$total_litres_of_pure_alcohol))/nrow(model_data_factor)
+match_rate_sys
+```
+
+Still, we are only able to math ~92% of the data. Looking at the data more closely, it is clear this is just due to the discrepancies in how certain countries are referenced in each dataset. We can go through and manually adjust the name of each country so that we can match all of the data. We then calculate our final match rate. 
+
+```{r}
+# Hard-code country names to match drinks dataset, unfortunately this is unavoidable in this context
+life_exp_factor$country[life_exp_factor$country == "Bosnia and Herzegovina"] <- "Bosnia-Herzegovina"
+life_exp_factor$country[life_exp_factor$country == "Brunei Darussalam"] <- "Brunei"
+life_exp_factor$country[life_exp_factor$country == "Côte d'Ivoire"] <- "Cote d'Ivoire"
+life_exp_factor$country[life_exp_factor$country == "Democratic People's Republic of Korea"] <- "North Korea"
+life_exp_factor$country[life_exp_factor$country == "Democratic Republic of the Congo"] <- "DR Congo"
+life_exp_factor$country[life_exp_factor$country == "Lao People's Democratic Republic"] <- "Laos"
+life_exp_factor$country[life_exp_factor$country == "Republic of Korea"] <- "South Korea"
+life_exp_factor$country[life_exp_factor$country == "Republic of Moldova"] <- "Moldova"
+life_exp_factor$country[life_exp_factor$country == "Syrian Arab Republic"] <- "Syria"
+life_exp_factor$country[life_exp_factor$country == "The former Yugoslav republic of Macedonia"] <- "Macedonia"
+life_exp_factor$country[life_exp_factor$country == "United Kingdom of Great Britain and Northern Ireland"] <- "United Kingdom"
+life_exp_factor$country[life_exp_factor$country == "United Republic of Tanzania"] <- "Tanzania"
+life_exp_factor$country[life_exp_factor$country == "United States of America"] <- "USA"
+life_exp_factor$country[life_exp_factor$country == "Viet Nam"] <- "Vietnam"
+
+# Join datasets and calculate match rate
+model_data_factor <- left_join(life_exp_factor, drinks, by = "country")
+match_rate_final <- sum(!is.na(model_data_factor$total_litres_of_pure_alcohol))/nrow(model_data_factor)
+match_rate_final
+```
+
+Excellent! We have merged both datasets to the best of our ability. However, we still need to make sure that we don't have any incomplete data. Let's see what's still missing...
+
+```{r}
+model_data_factor[is.na(model_data_factor$total_litres_of_pure_alcohol),]
+```
+
+Ah! It looks like there is a country that exists in the life expectancy data set that does not exist in the drinks dataset. At this point, we are safe just removing this row from the dataset. 
+
+```{r}
+# Keep only rows without missing data
+model_data_factor <- model_data_factor[!is.na(model_data_factor$total_litres_of_pure_alcohol),]
+```
+
+Now we have completed the data wrangling process! Wait! Except the life expectancy dataset we created earlier with dummy variables doesn't have any of the country names changes and thus won't be able to merge with the drinks dataset accurately as it currently stands. Since we have already typed this all out... we will just repeat the code. 
+
+```{r}
+# Create dummy variable dataset
+dummys <- model.matrix(~life_exp_factor$income)
+
+# Exclude last column of original dataset and intercept column of dummy variables
+life_exp_dummy <- data.frame(life_exp_factor[,-ncol(life_exp_factor)], dummys[,-1])
+
+# Join datasets
+model_data_dummy <- left_join(life_exp_dummy, drinks, by = "country")
+
+# Keep only rows without missing data
+model_data_dummy <- model_data_dummy[!is.na(model_data_dummy$total_litres_of_pure_alcohol),]
+```
+
+Even though it was only 4 lines of code, this is still a practice we want to avoid. We NEVER want to repreat code if we can help it! 
+
+## Conclusion
+
+For the exploratory phase of data cleaning and wrangling, it is okay not to do everything perfectly and work through your logic in a markdown file such as this. However, when you are creating a data pipeline we want to modularize and functionalize as many things as possible. An R Markdown file is a great way to communicate analysis and results, but is a bad way to engineer your data pipeline as it cannot be called in the same fluid way that an R Script can be. We see an example of how to properly construct the pipeline in the next section.
+
+# Proper Data Pipeline Example
+
+Here we show an example of how we can build the data pipeline in R scripts and then source data cleaning and loading functions into the R Markdown file. Additionally, we write a script to automatically load all dependencies (i.e. libraries, packages) and install them if they are not already installed on the system running the code.
+
+```{r}
+# Source script to install/load dependencies
+source("load_dependencies.R")
+
+# Source cleaning_and_wrangling script
+source("cleaning_and_wrangling.R")
+```
+
+## Load cleaned and wrangled datasets
+
+As you can see, instead of working through all of the cleaning and wrangling process within R Markdown chunks, we just source our cleaning and wrangling scripts and call whatever function we need to get the appropriate data. This is a far better practice for ensuring reproducibility within your pipeline as different team members can load the data in the same way and then perform their own analyses individually without having to be concerned that their datasets are not the same. Furthermore, it is just way easier to read through and follow as opposed to aggregating every single piece of work that you did into one R Markdown file.
+
+```{r}
+# Load cleaned drinks dataset
+drinks_clean <- clean_drinks()
+
+# Load cleaned life expectancy dataset
+life_exp_clean <- clean_life_exp()
+
+# Load model dataset with categorical variable stored as factor
+model_data_factor_clean <- load_factor_data()
+
+# Load model dataset with categorical variables stored as dummy variables
+model_data_dummy_clean <- load_dummy_data()
+```
+
+Now that we have our datasets loaded in nice and cleanly we can begin the next stage of our pipeline!
+
+
