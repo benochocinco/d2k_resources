@@ -1,0 +1,83 @@
+---
+title: "Generalized Linear Models"
+author: "D2K Course Staff"
+date: "`r format(Sys.time(), '%B %d %Y')`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+library(knitr) # We need the knitr package to set chunk options
+library(tidyverse)
+
+# Set default knitr options for knitting code into the report:
+opts_chunk$set(echo=TRUE,  # change to FALSE to keep code out of the knitted document
+               cache=FALSE, # re-run code that has already been run?
+               autodep=TRUE, # assure that caching dependencies are updated correctly
+               cache.comments=FALSE, # do not re-run a chunk if only comments are changed
+               message=FALSE, # change to FALSE to keep messages out of the knitted document
+               warning=FALSE,  # change to FALSE to keep warnings out of the knitted document
+               comment = NA,
+               tidy.opts=list(width.cutoff=65))
+
+theme1 <- theme_bw() +
+  theme(axis.text = element_text(size = 8, colour = "#6b3447"),
+        axis.title = element_text(size = 10, colour = "#2f2f63"),
+        legend.title = element_text(size = 8, colour = "#2f2f63"),
+        legend.text = element_text(size = 8, colour = "#6b3447"), 
+        title = element_text(size = 12, colour = "#2f2f63"), 
+        axis.ticks = element_line(colour = "#6b3447"),
+        plot.caption = element_text(size = 8, colour = "#2f2f63"),
+        plot.subtitle = element_text(size = 10, colour = "#2f2f63"))
+```
+
+# Introduction
+
+Linear regression models can be pretty useful! However, an ordinary linear regression does not suffice in many cases. Linear regression follows the model: $$Y = X_i\beta + \epsilon, \epsilon \sim N(0, \sigma^2).$$ This assumes that the response variable is continuous and can, in theory, fall anywhere in the interval $(-\infty, \infty)$. We often ignore this restriction in cases where the linear model works well enough. For example, even though human heights can not be below zero, they exist on a continuous scale and are generally far away enough from their lower bound such that we can ignore this issue and still fit a linear regression model with height as the response variable. Of course, this comes with the understanding that this model should not be used for prediction or inference for cases outside the range of normal human heights (or, more precisely, outside of the range of human heights observed in the data). However, two particular cases where ordinary linear regression does not work is for binary and count data. For one, these data are discrete; thus, using the model $Y = X_i\beta + \epsilon, \epsilon \sim N(0, \sigma^2)$ does not make any sense! Additionally, we may end up with predictions outside the range of possible values, e.g. below 0 for count data. In these cases, we use what is called a generalized linear model. Examples are shown below for the binary and count data casees.
+
+\newpage
+
+# Binary: Logistic Regression
+
+For binary data, using the model $Y_i = X_i\beta + \epsilon, \epsilon \sim N(0, \sigma^2)$ obviously makes no sense. One intiuitive solution might be to use the model: $$Y_i \sim Bern(p_i)$$ $$p_i = X_i\beta.$$ However, this still runs in to the problem where we can predict probabilities less than 0 or greater than 1. To fix this, we use the logistic regression model:  $$Y_i \sim Bern(p_i)$$ $$\log\left(\frac{p_i}{1-p_i}\right) = X_i\beta.$$ $\frac{p_i}{1-p_i}$ is called the odds ratio. The latter translates mathematically to: $$p_i = \frac{e^{X_i\beta}}{1 + e^{X_i\beta}}.$$ $\log\left(\frac{p_i}{1-p_i}\right)$ falls in the interval $(\-infty, \infty)$ fr $0 < p < 1$, solving our issue with predicting probabilities less than 0 or greater than 1.
+
+Below, we fit a logistic regression model predicting whether a melanoma cancer patient has an ulcer based on tumor thickness, taking age and sex in to account. GLMs are generally fit using the `glm()` function in base R. The `family` argument is used to tell the function which type of regression to run - in this case, we want `family - 'binomial'`.
+
+```{r}
+library(MASS)
+data(Melanoma)
+head(Melanoma)
+```
+
+
+```{r}
+model1 <- glm(ulcer ~ age + sex + thickness, family = "binomial", data = Melanoma)
+summary(model1)
+```
+
+Model inference can be done in the same way that it is done in ordinary linear regression; in this model, tumor thickness is a statistically significant prdictor of ulcer presence, conditional age and sex. However, interpreting the specific effects of a variable can be unintuitive. For logistic regression, a coefficient greater than 0 means that an increase in that variable increases $p_i$, while one less than 0 means that an increase in that variable decreases $p_i$. The actual quantitative effect of a one unit increase, however, is not linear. What we would typically say is that "a one unit increase in ... increases/decreases the odds $\frac{p_i}{1-p_i}$ of "success" by a factor of $e^{\beta_j}$, holding all other variables constant." In this particular example, a one millimeter increase in tumor size increases the odds of having an ulcer by a factor of $e^{0.430484} \approx 1.538$, holding all other variables constant.
+
+\newpage
+
+# Counts: Poisson Regression
+
+In the case of count data, ordinary linear regression can be an appropriate model if the counts are relatively large. However, in the case where we have many 0 counts, we may end up with predicted negative counts. One common option is to use the Poisson regression model in this case: $$Y_i \sim Pois(\mu_i)$$ $$\log(\mu_i) = X_i\beta.$$ Like above, the logic here is that $\log(\mu_i)$ can be any real-valued number for $\mu > 0$ as required by the Poisson model. The latter formula above can be written as: $$\mu_i = e^{X_i\beta}.$$
+
+Below, we fit a Poisson regression model predicting the number of snail fatalities given their species, the humditiy and temperature of their enviornment, and the weeks of exposure. This is done using `family = 'poisson'` in `glm()`.
+
+```{r}
+data(snails)
+head(snails)
+```
+
+```{r}
+model2 <- glm(Deaths ~ Temp + Rel.Hum + Exposure + Species, family = "poisson", data = snails)
+summary(model2)
+```
+
+Based on the summary output, all of the predictors in the model are statistically significant. Once again, the interpretation of the coefficients is not straightforward since the effect of each on $\mu_i$ is nonlinear. As above, a coefficient greater than 0 means that an increase in that variable increases $\mu_i$, while one less than 0 means that an increase in that variable decreases $\mu_i$. For the specific quantitative effect, we would say that "a one unit increase in ... increases/decreases the mean number of ... by a factor of $e^{\beta_j}$, holding all other variables constant." In this particular example, a one week increase in exposure increases the mean number of deaths by a factor of $e^{1.11708} \approx 3.0559$, holding all other variales constant.
+
+\newpage
+
+# Extensions
+
+GLMs can actually be used for regressions under many different types of distributions. The default distributions that can be modeled can be found at `?family`. Additionally, other parametric distributions can be modeled fairly easily using self-written functions - this can generally be done using your preferred optimization algortihm (e.g., `optim` in R, gradient descent) on the likelihood function. (For you math-stat-inclined folks, this is done for exponential family distributions by letting $\theta = X\beta$ for the natural parameter $\theta$ of the distribution.)
