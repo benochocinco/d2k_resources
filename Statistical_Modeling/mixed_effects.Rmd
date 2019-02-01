@@ -125,7 +125,7 @@ We should not use the t-values returned by `lmer` to do statistical inference. P
 
 ## ANOVA
 
-ANOVA can be used in situations where we want to test for the statistical significance of individual or sets of variables. This is done by fitting 2 models: one with the variable(s) of interest and one without. These are then compared formally using an F-test, one of the classic likelihood ratio tests. The key in this case is that one model is nested in the other. meaning that the variables included in the smaller model must be a subset of the variables included in the larger model. Below, we fit a model without `IQ` before we run the ANOVA
+ANOVA can be used in situations where we want to test for the statistical significance of individual or sets of variables. This is done by fitting 2 models: one with the variable(s) of interest and one without. These are then compared formally using an F-test, one of the classic likelihood ratio tests. The key in this case is that one model is nested in the other. meaning that the variables included in the smaller model must be a subset of the variables included in the larger model. Below, we fit a model without `IQ` before we run the ANOVA.
 
 ```{r}
 model3 <- lmer(lang ~ GS + SES + COMB + (1|class), data = nlschools)
@@ -134,16 +134,22 @@ anova(model3, model1)
 
 The results are shown above. In this example, the model with `IQ` is significantly better than the one without, based on the p-value from the ANOVA output.
 
+\newpage
+
 ## AIC/BIC
 
-Infromation criterion tests are used in the case where we do not have nested models. The upside is, of course, that we can more flexibly compare two models. The downside is that there is no formal statistical test or standard for these types of tests to show that one model is definitively better than the other. We can say in general that a smaller AIC or BIC is better; by most standards, a difference of 6 is generally considered enough evidence that one model is better than another.
+Infromation criterion tests are used in the case where we do not have nested models. The upside is, of course, that we can more flexibly compare two models. The downside is that there is no formal statistical test or standard for these types of tests to show that one model is definitively better than the other. We can say in general that a smaller AIC or BIC is better; by most standards, a difference of 6 is generally considered enough evidence that one model is better than another. Here, we first create a non-nested model by creating a random independent variable, then fit a model with said random variable and without IQ.
 
 ```{r}
-AIC(model3, model1)
-BIC(model3, model1)
+nlschools$random <- rnorm(nrow(nlschools))
+model4 <- lmer(lang ~ GS + SES + COMB + (1|class) + random, data = nlschools)
+AIC(model4, model1)
+BIC(model4, model1)
 ```
 
 For both of these criteria, the AIC and BIC of the model without `IQ` is much larger than the respective measures on the model with `IQ`. There is almost certainly enough evidence to say that the model with `IQ` is better.
+
+
 
 \newpage
 
