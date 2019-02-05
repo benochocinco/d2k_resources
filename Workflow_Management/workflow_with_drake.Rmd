@@ -12,12 +12,10 @@ This introductory example was taken from the Drake GitHub repository: https://gi
 
 ## Load packages
 
-We load the necessary packages to perform this module. Install any of these packages that you do not have using install.packages(). 
+We load the necessary packages to perform this module.
 
 ```{r}
-library(drake)
-library(dplyr)
-library(ggplot2)
+source('load_dependencies.R')
 ```
 
 ## Load custom functions
@@ -146,10 +144,10 @@ Now that we have called our user-defined functions, we can make our drake plan t
 
 ```{r}
 dcw_plan <- drake_plan(# Load cleaned drinks dataset
-  drinks_clean = clean_drinks(),
-  life_exp_clean = clean_life_exp(),
-  model_data_factor_clean = load_factor_data(),
-  model_data_dummy_clean = load_dummy_data()
+  drinks_clean = clean_drinks("data/drinks.csv", "data/alcohol_consumption.csv"),
+  life_exp_clean = clean_life_exp("data/lifeexpectancy.csv"),
+  model_data_factor_clean = load_factor_data("data/drinks.csv", "data/alcohol_consumption.csv", "data/lifeexpectancy.csv"),
+  model_data_dummy_clean = load_dummy_data("data/drinks.csv", "data/alcohol_consumption.csv", "data/lifeexpectancy.csv")
   )
 
 make(dcw_plan)
