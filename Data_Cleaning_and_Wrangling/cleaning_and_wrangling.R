@@ -1,39 +1,86 @@
 # Load packages with load_dependencies.R script
 source("load_dependencies.R")
 
-# Create clean_drinks() function
-clean_drinks <- function(){
+# Create clean_consumption() function
+clean_consumption <- function(consumption_file){
   
-  # Read in drinks data set
-  drinks <- read.csv("data/drinks.csv", header = TRUE, stringsAsFactors = FALSE)
+  # Read in alcohol consumption data we found here: https://data.worldbank.org/indicator/SH.ALC.PCAP.LI
+  consumption <- read.csv(consumption_file, header = TRUE, stringsAsFactors = FALSE, skip = 3)
+  
+  # Remove empty columns
+  consumption <- consumption[,colSums(is.na(consumption))<nrow(consumption)]
+  
+  # Clean up column names, remove leading X in year columns
+  colnames(consumption) <- gsub("^(X{1})(\\d{4})$", "\\2",  colnames(consumption))
+  
+  # Grab most recent year column
+  most_recent <- names(consumption)[ncol(consumption)]
+  
+  # Rename country column and keep only country column and most recent year column
+  consumption <- consumption %>%
+    rename(country = Country.Name, most_recent = most_recent) %>%
+    select(country, most_recent)
+  
+  # Clean up country names to optimize matching -----------------------------------------------
+  
+  # Remove parentheses, contents within, and space before
+  consumption$country <- gsub("\\s*\\([^\\)]+\\)", "", consumption$country)
+  
+  # Remove anything after a comma
+  consumption$country <- gsub("(.*),.*", "\\1", consumption$country)
   
   # Refactor country names for join with life expectancy data
-  drinks$country <- gsub("&", "and", drinks$country)
+  consumption$country <- gsub("&", "and", consumption$country)
+  
+  # Return cleaned data
+  return(consumption)
+}
+
+
+# Create clean_drinks() function
+clean_drinks <- function(drinks_file, consumption_file){
+  
+  # Read in drinks data set
+  drinks <- read.csv(drinks_file, header = TRUE, stringsAsFactors = FALSE)
   
   # Replace ? values with NA
   drinks[drinks == "?"] <- NA
   
   # Convert columns from character to numeric
-  drinks$beer_servings <- as.numeric(drinks$beer_servings)
-  drinks$spirit_servings <- as.numeric(drinks$spirit_servings)
-  drinks$wine_servings <- as.numeric(drinks$wine_servings)
+  num_cols <- c("beer_servings", "spirit_servings", "wine_servings", "total_litres_of_pure_alcohol")
+  drinks[num_cols] <- sapply(drinks[num_cols], as.numeric)
   
+  # Refactor country names for join with life expectancy data
+  drinks$country <- gsub("&", "and", drinks$country)
+  
+  # Create standard drink's alcohol content variable
+  std_drink <- 0.017744
   
   # Calculate liters of alcohol per country
   # https://www.niaaa.nih.gov/alcohol-health/overview-alcohol-consumption/what-standard-drink
-  drinks$total_litres_of_pure_alcohol <- (drinks$beer_servings + drinks$spirit_servings + drinks$wine_servings)*0.017744
+  drinks$total_litres_of_pure_alcohol <- (drinks$beer_servings + drinks$spirit_servings + drinks$wine_servings)*std_drink
   
-  # Replace missing data from research
-  # https://www.who.int/gho/countries/en/
-  drinks$total_litres_of_pure_alcohol[drinks$country == "Bahamas"] <- 6.9
-  drinks$total_litres_of_pure_alcohol[drinks$country == "Denmark"] <- 11.4
-  drinks$total_litres_of_pure_alcohol[drinks$country == "Macedonia"] <- 6.7
+  # Get supplementary data on alcohol consumption ----------------------------------------------
   
-  # Engineer feature to create indicator variable of whether consumption is above or below 7 drinks per week
+  # Call clean_consumption() function
+  consumption <- clean_consumption(consumption_file)
+
+  # Replace missing data from supplementary consumption data
+  drinks <- drinks %>%
+    left_join(consumption, by = "country") %>%
+    mutate(total_litres_of_pure_alcohol = coalesce(total_litres_of_pure_alcohol, most_recent)) %>%
+    select(-most_recent)
+    
+  # Engineer features --------------------------------------------------------------------------
+
+  # Calculate healthy consumption threshold for annual consumption
   # https://www.niaaa.nih.gov/alcohol-health/overview-alcohol-consumption/moderate-binge-drinking
-  # Healthy consumption threshold = 0.017744 x 7 x 52 = 6.458816
-  drinks$unhealthy_consumption <- 0
-  drinks$unhealthy_consumption[drinks$total_litres_of_pure_alcohol > 6.458816] <- 1
+
+  threshold <- std_drink*7*52
+  
+  drinks <- drinks %>% 
+    mutate(unhealthy_consumption = case_when(total_litres_of_pure_alcohol >= threshold ~ 1,
+                                             total_litres_of_pure_alcohol < threshold ~ 0))
   
   # Return data
   return(drinks)
@@ -41,85 +88,67 @@ clean_drinks <- function(){
 
 
 # Create clean_life_exp() function
-clean_life_exp <- function(){
+clean_life_exp <- function(life_exp_file){
   
   # Read in life expectancy data set
-  life_exp <- read.csv("data/lifeexpectancy.csv", header = TRUE, stringsAsFactors = FALSE)
+  life_exp <- read.csv(life_exp_file, header = TRUE, stringsAsFactors = FALSE)
   
-  # Keep only most recent measures from year 2013
-  life_exp <- life_exp[life_exp$YearCode == 2013,]
-  
-  # Initialize vector of all unique countries
-  countries <- unique(life_exp$CountryDisplay)
-  
-  # Initialize reshaped data frame with columns for each measure of life expectancy 
-  life_exp_rshp <- data.frame(matrix(nrow = length(countries), ncol = 11))
-  
-  # Initialize and assign column names
-  ler_names <- c("country", "male_birth", "male_healthy", "male_60", 
-                 "female_birth", "female_healthy", "female_60",
-                 "both_birth", "both_healthy", "both_60", "income")
-  colnames(life_exp_rshp) <- ler_names
-  
-  # Iterate through countries and transform data to create a tidy dataset with one row for each country and one column for each measure of life expectancy 
-  for (i in 1:length(countries)){
-    # Assign countries to "country" column
-    life_exp_rshp$country[i] <- countries[i]
-    # Assign male life expectancy values for different lifetime measures
-    life_exp_rshp$male_birth[i] <- life_exp$Numeric[life_exp$CountryDisplay == countries[i] & life_exp$SexDisplay == "Male" & life_exp$GhoDisplay == "Life expectancy at birth (years)"]
-    life_exp_rshp$male_healthy[i] <- life_exp$Numeric[life_exp$CountryDisplay == countries[i] & life_exp$SexDisplay == "Male" & life_exp$GhoDisplay == "Healthy life expectancy (HALE) at birth (years)"]
-    life_exp_rshp$male_60[i] <- life_exp$Numeric[life_exp$CountryDisplay == countries[i] & life_exp$SexDisplay == "Male" & life_exp$GhoDisplay == "Life expectancy at age 60 (years)"]
-    # Assign female life expectancy values for different lifetime measures
-    life_exp_rshp$female_birth[i] <- life_exp$Numeric[life_exp$CountryDisplay == countries[i] & life_exp$SexDisplay == "Female" & life_exp$GhoDisplay == "Life expectancy at birth (years)"]
-    life_exp_rshp$female_healthy[i] <- life_exp$Numeric[life_exp$CountryDisplay == countries[i] & life_exp$SexDisplay == "Female" & life_exp$GhoDisplay == "Healthy life expectancy (HALE) at birth (years)"]
-    life_exp_rshp$female_60[i] <- life_exp$Numeric[life_exp$CountryDisplay == countries[i] & life_exp$SexDisplay == "Female" & life_exp$GhoDisplay == "Life expectancy at age 60 (years)"]
-    # Assign life expectancy values for both sexes for different lifetime measures
-    life_exp_rshp$both_birth[i] <- life_exp$Numeric[life_exp$CountryDisplay == countries[i] & life_exp$SexDisplay == "Both sexes" & life_exp$GhoDisplay == "Life expectancy at birth (years)"]
-    life_exp_rshp$both_healthy[i] <- life_exp$Numeric[life_exp$CountryDisplay == countries[i] & life_exp$SexDisplay == "Both sexes" & life_exp$GhoDisplay == "Healthy life expectancy (HALE) at birth (years)"]
-    life_exp_rshp$both_60[i] <- life_exp$Numeric[life_exp$CountryDisplay == countries[i] & life_exp$SexDisplay == "Both sexes" & life_exp$GhoDisplay == "Life expectancy at age 60 (years)"]
-    # Assign income-level to country
-    life_exp_rshp$income[i] <- life_exp$WorldBankIncomeGroupDisplay[life_exp$CountryDisplay == countries[i] & life_exp$SexDisplay == "Both sexes" & life_exp$GhoDisplay == "Healthy life expectancy (HALE) at birth (years)"]
-  }
-  
-  ### Refactor country names to join with drinks dataset ###
-  
+  # Clean and wrangle data in one dplyr pipe! -------------------------------------------------------
+  life_exp <- life_exp %>%
+    # Keep only most recent year's data
+    filter(YearDisplay == max(life_exp$YearCode)) %>%
+    # Keep only the rows with life expectancy data for "Both sexes"
+    filter(SexDisplay == "Both sexes") %>%
+    # Select relevant columns to keep 
+    select(GhoDisplay, YearDisplay, WorldBankIncomeGroupDisplay, CountryDisplay, SexDisplay, Numeric) %>%
+    # Fill in missing values with NA
+    mutate(WorldBankIncomeGroupDisplay = replace(WorldBankIncomeGroupDisplay, WorldBankIncomeGroupDisplay == "", NA)) %>%
+    # Arrange alphabetically so NA values are below for each category to utilize fill function 
+    arrange(CountryDisplay, GhoDisplay) %>%
+    fill(WorldBankIncomeGroupDisplay, .direction = "down") %>%
+    # Keep life expectancy measure of interest
+    filter(GhoDisplay == "Life expectancy at birth (years)") %>%
+    # Select relevant columns and rename them
+    select(CountryDisplay, WorldBankIncomeGroupDisplay, Numeric) %>%
+    rename(country = CountryDisplay, income = WorldBankIncomeGroupDisplay, life_expectancy = Numeric)
+
   # Replace underscores with dashes
-  life_exp_rshp$country <- gsub("_", "-", life_exp_rshp$country)
+  life_exp$country <- gsub("_", "-", life_exp$country)
   
   # Remove parentheses, contents within, and space before
-  life_exp_rshp$country <- gsub("\\s*\\([^\\)]+\\)", "", life_exp_rshp$country)
+  life_exp$country <- gsub("\\s*\\([^\\)]+\\)", "", life_exp$country)
   
   # Replace Saint with St.
   life_exp_factor$country <- gsub("Saint", "St.", life_exp_factor$country)
 
-  # Hard-code country names to match drinks dataset, unfortunately this is unavoidable in this context
-  life_exp_factor$country[life_exp_factor$country == "Bosnia and Herzegovina"] <- "Bosnia-Herzegovina"
-  life_exp_factor$country[life_exp_factor$country == "Brunei Darussalam"] <- "Brunei"
-  life_exp_factor$country[life_exp_factor$country == "Côte d'Ivoire"] <- "Cote d'Ivoire"
-  life_exp_rshp$country[life_exp_rshp$country == "Democratic People's Republic of Korea"] <- "North Korea"
-  life_exp_rshp$country[life_exp_rshp$country == "Democratic Republic of the Congo"] <- "DR Congo"
-  life_exp_rshp$country[life_exp_rshp$country == "Lao People's Democratic Republic"] <- "Laos"
-  life_exp_rshp$country[life_exp_rshp$country == "Republic of Korea"] <- "South Korea"
-  life_exp_rshp$country[life_exp_rshp$country == "Republic of Moldova"] <- "Moldova"
-  life_exp_rshp$country[life_exp_rshp$country == "Syrian Arab Republic"] <- "Syria"
-  life_exp_rshp$country[life_exp_rshp$country == "The former Yugoslav republic of Macedonia"] <- "Macedonia"
-  life_exp_rshp$country[life_exp_rshp$country == "United Kingdom of Great Britain and Northern Ireland"] <- "United Kingdom"
-  life_exp_rshp$country[life_exp_rshp$country == "United Republic of Tanzania"] <- "Tanzania"
-  life_exp_rshp$country[life_exp_rshp$country == "United States of America"] <- "USA"
-  life_exp_rshp$country[life_exp_rshp$country == "Viet Nam"] <- "Vietnam"
+  # Hard-code country names changes to match drinks dataset, unfortunately this is unavoidable in this context
+  life_exp$country[life_exp$country == "Bosnia and Herzegovina"] <- "Bosnia-Herzegovina"
+  life_exp$country[life_exp$country == "Brunei Darussalam"] <- "Brunei"
+  life_exp$country[life_exp$country == "Côte d'Ivoire"] <- "Cote d'Ivoire"
+  life_exp$country[life_exp$country == "Democratic People's Republic of Korea"] <- "North Korea"
+  life_exp$country[life_exp$country == "Democratic Republic of the Congo"] <- "DR Congo"
+  life_exp$country[life_exp$country == "Lao People's Democratic Republic"] <- "Laos"
+  life_exp$country[life_exp$country == "Republic of Korea"] <- "South Korea"
+  life_exp$country[life_exp$country == "Republic of Moldova"] <- "Moldova"
+  life_exp$country[life_exp$country == "Syrian Arab Republic"] <- "Syria"
+  life_exp$country[life_exp$country == "The former Yugoslav republic of Macedonia"] <- "Macedonia"
+  life_exp$country[life_exp$country == "United Kingdom of Great Britain and Northern Ireland"] <- "United Kingdom"
+  life_exp$country[life_exp$country == "United Republic of Tanzania"] <- "Tanzania"
+  life_exp$country[life_exp$country == "United States of America"] <- "USA"
+  life_exp$country[life_exp$country == "Viet Nam"] <- "Vietnam"
   
   # Return data
-  return(life_exp_rshp)
+  return(life_exp)
 }
 
 # Create load_factor_data function to load data with factor-type categorical variable
-load_factor_data <- function(){
+load_factor_data <- function(drinks_file, consumption_file, life_exp_file){
   
   # Call clean_drinks() function
-  drinks <- clean_drinks()
+  drinks <- clean_drinks(drinks_file, consumption_file)
   
   # Call clean_life_exp() function
-  life_exp_rshp <- clean_life_exp()
+  life_exp_rshp <- clean_life_exp(life_exp_file)
   
   # Perform left join to merge datasets
   model_data_factor <- left_join(life_exp_factor, drinks, by = "country")
@@ -132,10 +161,10 @@ load_factor_data <- function(){
 }
 
 # Create load_dummy_data function to load data with dummy categorical variables
-load_dummy_data <- function(){
+load_dummy_data <- function(drinks_file, consumption_file, life_exp_file){
   
   # Load factor dataset to avoid repeating code
-  model_data_factor <- load_factor_data()
+  model_data_factor <- load_factor_data(drinks_file, consumption_file, life_exp_file)
   
   # Create dummy variables
   dummys <- model.matrix(~model_data_factor$income)
@@ -146,13 +175,5 @@ load_dummy_data <- function(){
   # Return data
   return(model_data_dummy)
 }
-
-
-
-
-
-
-
-
 
 

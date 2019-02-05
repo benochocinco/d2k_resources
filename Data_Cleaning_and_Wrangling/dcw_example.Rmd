@@ -82,15 +82,57 @@ Let's examine what data is missing at this point...
 drinks[is.na(drinks$total_litres_of_pure_alcohol),]
 ```
 
-Since we are only concerned with total alcohol consumption, we only have to worry about dealing with the missing data points in the total_litres_of_pure_alcohol column. There are many ways to deal with missing data, and there is no ideal way to deal with it, but we can do our best with what we have. Since alcohol consumption is publicly available data that is recorded by international organizations such as WHO, we can find the missing data on the internet via a quick google search (https://www.who.int/gho/countries/en/).
+Since we are only concerned with total alcohol consumption, we only have to worry about dealing with the missing data points in the total_litres_of_pure_alcohol column. There are many ways to deal with missing data, and there is no ideal way to deal with it, but we can do our best with what we have. Since alcohol consumption is publicly available data, we can find the missing data on the internet via a quick google search (https://data.worldbank.org/indicator/SH.ALC.PCAP.LI). Luckily, we are able to find supplementary data that we can combine with our initial dataset. Even though the 
 
 For more about dealing with missing data, please check out the following resource: https://towardsdatascience.com/how-to-handle-missing-data-8646b18db0d4.
 
 ```{r}
-# Replace missing data from research
-drinks$total_litres_of_pure_alcohol[drinks$country == "Bahamas"] <- 6.9
-drinks$total_litres_of_pure_alcohol[drinks$country == "Denmark"] <- 11.4
-drinks$total_litres_of_pure_alcohol[drinks$country == "Macedonia"] <- 6.7
+# Read in supplementary alcohol consumption dataset
+consumption <- read.csv("data/alcohol_consumption.csv", header = TRUE, stringsAsFactors = FALSE, skip = 3)
+
+head(consumption)
+```
+
+We can see that there are quite a few extra columns that are filled with NA values. In order to ween down the dataset we remove any column that is entirely populated with NA's.
+
+```{r}
+# Remove empty columns
+consumption <- consumption[,colSums(is.na(consumption))<nrow(consumption)]
+```
+
+Since there are mulitple years of data, we want to make sure we only keep the most recent year since we followed that same logic previously in our wrangling process. We also keep only the country column and the most recent consumption column. 
+
+```{r}
+# Grab most recent year column
+most_recent <- names(consumption)[ncol(consumption)]
+
+# Rename country column and keep only country column and most recent year column
+consumption <- consumption %>%
+  rename(country = Country.Name, most_recent = most_recent) %>%
+  select(country, most_recent)
+```
+
+We will need to join this supplementary data set with our original $drinks$ dataset. Before we can do that, we need to clean up the country names in order to perform a join on that column.
+
+```{r}
+# Remove parentheses, contents within, and space before
+consumption$country <- gsub("\\s*\\([^\\)]+\\)", "", consumption$country)
+
+# Remove anything after a comma
+consumption$country <- gsub("(.*),.*", "\\1", consumption$country)
+
+# Refactor country names for join with life expectancy data
+consumption$country <- gsub("&", "and", consumption$country)
+```
+
+Finally, we can join the supplementary dataset and replace the missing values that we need, dropping the extra column after we take the data we need.
+
+```{r}
+# Replace missing data from supplementary consumption data
+drinks <- drinks %>%
+  left_join(consumption, by = "country") %>%
+  mutate(total_litres_of_pure_alcohol = coalesce(total_litres_of_pure_alcohol, most_recent)) %>%
+  select(-most_recent)
 ```
 
 ### Engineer features
@@ -127,61 +169,69 @@ summary(life_exp)
 
 This data is not nearly as clean as the drinks data. We see that there are multiple observations for each country and many years of data contained in the dataset. We only want to look at the most up-to-date data, so we filter to only keep the rows for the year 2013.
 
-```{r}
-# Keep only most recent measures from year 2013
-life_exp <- life_exp[life_exp$YearCode == 2013,]
-```
-
-When working with data for analysis, it is important that we are able to get it into a matrix where each row represents an observation and each column represents a feature. This requires some significant reshaping. Although there are built in functions to automatically reshape data, they often can be difficult to work with as they are not quite as flexible as writing your own code. We initialize a new data frame of the appropriate size and iterate through the country names pulling the relevant pieces of information to build our new dataset.
-
-In this particular case, we are creating a variable for each measure of life-expectancy included in the original dataset along with a column for the "WorldBankIncomeGroup" categorical variable.
+Furthermore, there are many measures of life expectancy in the dataset! Since our drinks data is recorded for all citizens and not any specific gender, we only want to look at life expectancy data for *Both Sexes*.
 
 ```{r}
-# Initialize vector of all unique countries
-countries <- unique(life_exp$CountryDisplay)
+# Keep only most recent year's data
+life_exp <- life_exp %>%
+  filter(YearDisplay == max(life_exp$YearCode))
 
-# Initialize reshaped data frame with columns for each measure of life expectancy 
-life_exp_rshp <- data.frame(matrix(nrow = length(countries), ncol = 11))
+# Keep only the rows with life expectancy data for "Both sexes"
+life_exp <- life_exp %>% 
+  filter(SexDisplay == "Both sexes")
 
-# Initialize and assign column names
-ler_names <- c("country", "male_birth", "male_healthy", "male_60", 
-               "female_birth", "female_healthy", "female_60",
-               "both_birth", "both_healthy", "both_60", "income")
-colnames(life_exp_rshp) <- ler_names
-
-# Iterate through countries and transform data to create a tidy dataset with one row for each country and one column for each measure of life expectancy 
-for (i in 1:length(countries)){
-  # Assign countries to "country" column
-  life_exp_rshp$country[i] <- countries[i]
-  # Assign male life expectancy values for different lifetime measures
-  life_exp_rshp$male_birth[i] <- life_exp$Numeric[life_exp$CountryDisplay == countries[i] & life_exp$SexDisplay == "Male" & life_exp$GhoDisplay == "Life expectancy at birth (years)"]
-  life_exp_rshp$male_healthy[i] <- life_exp$Numeric[life_exp$CountryDisplay == countries[i] & life_exp$SexDisplay == "Male" & life_exp$GhoDisplay == "Healthy life expectancy (HALE) at birth (years)"]
-  life_exp_rshp$male_60[i] <- life_exp$Numeric[life_exp$CountryDisplay == countries[i] & life_exp$SexDisplay == "Male" & life_exp$GhoDisplay == "Life expectancy at age 60 (years)"]
-  # Assign female life expectancy values for different lifetime measures
-  life_exp_rshp$female_birth[i] <- life_exp$Numeric[life_exp$CountryDisplay == countries[i] & life_exp$SexDisplay == "Female" & life_exp$GhoDisplay == "Life expectancy at birth (years)"]
-  life_exp_rshp$female_healthy[i] <- life_exp$Numeric[life_exp$CountryDisplay == countries[i] & life_exp$SexDisplay == "Female" & life_exp$GhoDisplay == "Healthy life expectancy (HALE) at birth (years)"]
-  life_exp_rshp$female_60[i] <- life_exp$Numeric[life_exp$CountryDisplay == countries[i] & life_exp$SexDisplay == "Female" & life_exp$GhoDisplay == "Life expectancy at age 60 (years)"]
-  # Assign life expectancy values for both sexes for different lifetime measures
-  life_exp_rshp$both_birth[i] <- life_exp$Numeric[life_exp$CountryDisplay == countries[i] & life_exp$SexDisplay == "Both sexes" & life_exp$GhoDisplay == "Life expectancy at birth (years)"]
-  life_exp_rshp$both_healthy[i] <- life_exp$Numeric[life_exp$CountryDisplay == countries[i] & life_exp$SexDisplay == "Both sexes" & life_exp$GhoDisplay == "Healthy life expectancy (HALE) at birth (years)"]
-  life_exp_rshp$both_60[i] <- life_exp$Numeric[life_exp$CountryDisplay == countries[i] & life_exp$SexDisplay == "Both sexes" & life_exp$GhoDisplay == "Life expectancy at age 60 (years)"]
-  # Assign income-level to country
-  life_exp_rshp$income[i] <- life_exp$WorldBankIncomeGroupDisplay[life_exp$CountryDisplay == countries[i] & life_exp$SexDisplay == "Both sexes" & life_exp$GhoDisplay == "Healthy life expectancy (HALE) at birth (years)"]
-}
+head(life_exp)
 ```
 
-Now let us examine our new re-shaped dataset...
+Additionally, we only want to keep the variables that are relevant to us for our analysis. Most datasets have columns that store extraneous or redundant information, just like in this dataset where we have multiple columns for country name/ID, year, continent, etc.
 
 ```{r}
-head(life_exp_rshp)
+# Select relevant columns to keep 
+life_exp <- life_exp %>%
+  select(GhoDisplay, YearDisplay, WorldBankIncomeGroupDisplay, CountryDisplay, SexDisplay, Numeric)
+
+head(life_exp)
 ```
 
-and examine the variable types...
+We also want to replace all of the missing values represented by empty strings as NA values so that they are easier to work with
 
 ```{r}
-summary(life_exp_rshp)
+# Fill in missing values with NA
+life_exp[life_exp == ""] <- NA
+
+head(life_exp)
 ```
 
+We notice that the missing data is for the World Bank Income level. Since this is a variable that we are interested in including in our final dataset, we need to make sure that we populate the missing values with the appropriate corresponding value for that country.
+
+We can accomplish this by arranging the dataset by the $GhoDisplay$ and then fill in the missing values from the most recent values in the column.
+
+```{r}
+# Arrange alphabetically so NA values are below for each category to utilize fill function 
+life_exp <- life_exp %>%
+  arrange(CountryDisplay, GhoDisplay) %>%
+  fill(WorldBankIncomeGroupDisplay, .direction = "down")
+
+head(life_exp)
+```
+
+Also, there are still three different measures of life expectancy in our dataset. Which one is appropriate for the objective of our analysis? Since we are comparing total life expectancy with total per capita consumption of alcohol, we select the "Life expectancy at birth (years)" category as the relevant outcome variable. We filter the data to reflect this.
+
+```{r}
+# Keep life expectancy measure of interest
+life_exp <- life_exp %>%
+  filter(GhoDisplay == "Life expectancy at birth (years)")
+```
+
+
+Recall that the goal of the wrangling process is to tidy our data into a neat $n x p$ format where each row is an observation and each column is a relevant variable. However, we still have identifying variable columns that we don't actually want to include in our analysis. We will select the specific columns we want for our analysis and the country column to join with the drinks data. We can also rename the columns for easier reference later.
+
+```{r}
+# Select relevant columns and rename them
+life_exp <- life_exp %>%
+  select(CountryDisplay, WorldBankIncomeGroupDisplay, Numeric) %>%
+  rename(country = CountryDisplay, income = WorldBankIncomeGroupDisplay, life_expectancy = Numeric)
+```
 
 ### Generate Dummy Variables
 
@@ -191,7 +241,7 @@ Note: when creating dummy variables remember that you must only create columns f
 
 ```{r}
 # Create factor variable dataset
-life_exp_factor <- life_exp_rshp
+life_exp_factor <- life_exp
 life_exp_factor$income <- as.factor(life_exp_factor$income)
 
 # Create dummy variable dataset
@@ -320,16 +370,16 @@ As you can see, instead of working through all of the cleaning and wrangling pro
 
 ```{r}
 # Load cleaned drinks dataset
-drinks_clean <- clean_drinks()
+drinks_clean <- clean_drinks("data/drinks.csv", "data/alcohol_consumption.csv")
 
 # Load cleaned life expectancy dataset
-life_exp_clean <- clean_life_exp()
+life_exp_clean <- clean_life_exp("data/lifeexpectancy.csv")
 
 # Load model dataset with categorical variable stored as factor
-model_data_factor_clean <- load_factor_data()
+model_data_factor_clean <- load_factor_data("data/drinks.csv", "data/alcohol_consumption.csv", "data/lifeexpectancy.csv")
 
 # Load model dataset with categorical variables stored as dummy variables
-model_data_dummy_clean <- load_dummy_data()
+model_data_dummy_clean <- load_dummy_data("data/drinks.csv", "data/alcohol_consumption.csv", "data/lifeexpectancy.csv")
 ```
 
 Now that we have our datasets loaded in nice and cleanly we can begin the next stage of our pipeline!
