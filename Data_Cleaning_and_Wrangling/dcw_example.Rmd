@@ -54,6 +54,7 @@ summary(drinks)
 Hmmm... it seems as if all of the variables we know to be numeric are of the type "character". Why could this be? At this point, it is important to look at the entire dataset to discover the discrepancy. We make an interesting observation...
 
 ```{r}
+unique(drinks$beer_servings)
 drinks[drinks[,2] == "?" | drinks[,3] == "?" | drinks[,4] == "?",]
 ```
 
