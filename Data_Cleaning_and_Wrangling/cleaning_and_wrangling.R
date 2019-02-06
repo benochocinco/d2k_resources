@@ -119,7 +119,7 @@ clean_life_exp <- function(life_exp_file){
   life_exp$country <- gsub("\\s*\\([^\\)]+\\)", "", life_exp$country)
   
   # Replace Saint with St.
-  life_exp_factor$country <- gsub("Saint", "St.", life_exp_factor$country)
+  life_exp$country <- gsub("Saint", "St.", life_exp$country)
 
   # Hard-code country names changes to match drinks dataset, unfortunately this is unavoidable in this context
   life_exp$country[life_exp$country == "Bosnia and Herzegovina"] <- "Bosnia-Herzegovina"
@@ -148,7 +148,7 @@ load_factor_data <- function(drinks_file, consumption_file, life_exp_file){
   drinks <- clean_drinks(drinks_file, consumption_file)
   
   # Call clean_life_exp() function
-  life_exp_rshp <- clean_life_exp(life_exp_file)
+  life_exp_factor <- clean_life_exp(life_exp_file)
   
   # Perform left join to merge datasets
   model_data_factor <- left_join(life_exp_factor, drinks, by = "country")
