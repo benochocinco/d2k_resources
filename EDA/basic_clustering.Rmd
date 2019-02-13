@@ -136,7 +136,7 @@ The result of running hierarchical clustering on the `wine` data set are shown b
 
 The results are shown in a dendogram. The individual observations are on the x-axis, and the distance is on the y-axis. The tree structure in the plot shows the distance at which two different clusters are linked in to one - the higher up the tree, the further away the linkage distance is.
 
-```{r}
+```{r fig.height=5}
 dist_wine <- dist(wine[, -1])
 
 hclust_1 <- hclust(dist_wine)
@@ -153,7 +153,7 @@ We then choose the number of clusters by either choosing the number of desired c
 
 Let's see what happens if we run the above example with single linkage:
 
-```{r}
+```{r fig.height=5}
 hclust_2 <- hclust(dist_wine, method = "single")
 plot(hclust_2)
 ```
