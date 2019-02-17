@@ -143,7 +143,27 @@ hclust_1 <- hclust(dist_wine)
 plot(hclust_1)
 ```
 
-We then choose the number of clusters by either choosing the number of desired clusters or choosing a cutoff point for the maximim distance we allow for two points to be in the same cluster. For example, at a chosen cutoff of 600, we will have 4 clusters. (The actual numeric value of the distance doesn't really have meaning itself, so don't worry too much about it.)
+We then choose the number of clusters by either choosing the number of desired clusters or choosing a cutoff point for the maximim distance we allow for two points to be in the same cluster. For example, at a chosen cutoff of 600, we will have 4 clusters. (The actual numeric value of the distance doesn't really have meaning itself, so don't worry too much about it.) This can be done via the `cutree` function in R, in which we can choose either the height to cut the tree or the number of clusters desired.
+
+```{r}
+membership <- cutree(hclust_1, k = 4)
+```
+
+The results are shown below:
+
+```{r}
+ggplot() +
+  geom_text(aes(x = whee$x[, 1], y = whee$x[, 2], 
+                 color = factor(membership),
+                 label = as.character(wine$Type))) +
+  labs(title = "Wine Type Clusters",
+       x = "PC1",
+       y = "PC2",
+       color = "Assigned Cluster",
+       subtitle = "Point label indicaes true type") +
+  theme1
+```
+
 
 ## Disadvantages
 
