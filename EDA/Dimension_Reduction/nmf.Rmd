@@ -32,6 +32,9 @@ Unfortunately, unlike PCA, we cannot solve the optimization problem with singula
 We now show how to implement NMF on author text data that we are providing for this module from the `authorship.csv` file. The dataset contains word counts for several books by a handful of authors. We can see if we can see any clear patterns arise when performing NMF on this data set. Furthermore, since we know there are four different authors in the data set we wish to analyze, we choose $k=4$ when performing NMF. We can plot a heatmap of the consensus matrix derived earlier in order to see if any clusters of features arise and any patterns become apparent using hierarchical clustering.
 
 ```{r}
+# Load NMF library
+library(NMF)
+
 # Load author text data
 author_df <- read.csv("data/authorship.csv", header = TRUE, stringsAsFactors = FALSE)
 

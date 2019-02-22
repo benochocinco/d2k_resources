@@ -26,6 +26,17 @@ $$S_D(z_1,...,z_K) = \frac{\Sigma_{i\neq i'}[||z_i-z_{i'}||-\theta(d_{ii'})]^2}{
 One of the advantages of MDS is that it is extremely helpful for visualizing data in a lower dimension, especially when we are interested in identifying how similar certain groups are in our data. We will again use the authorship data to show how to perform MDS in R. Recall, we must first calculate the distance matrix from the original data, luckily this is quite easy in R. We elect to define our dissimilarities using the Canberra distance metric, however, there are many choices that may be worth exploring.
 
 ```{r}
+# Load author text data
+author_df <- read.csv("data/authorship.csv", header = TRUE, stringsAsFactors = FALSE)
+
+# Separate data into features and labels
+author_x <- as.matrix(author_df[,-c(70:71)])
+author_labels <- as.factor(author_df[,71])
+
+# Create matrix for analysis
+X <- author_x
+rownames(X) <- author_labels
+
 # Compute distance matrix
 Dmat <- dist(X, method="canberra")
 

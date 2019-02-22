@@ -30,6 +30,9 @@ where we define the joint probability $p_{ij}$ as the symmetrized conditional pr
 We will now show an implementation of t-SNE in R. We use a dataset filled with pixel values to highlight how t-SNE performs better than techniques like PCA for visualization. First we show how PCA performs on the data set.
 
 ```{r}
+# Load t-SNE library
+library(Rtsne)
+
 # Load data
 pixels <- read.csv("data/train.csv", header = TRUE, stringsAsFactors = FALSE)
 
