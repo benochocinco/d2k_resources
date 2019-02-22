@@ -310,6 +310,18 @@ text(tsne$Y, labels=pixel_labels, col=colors[pixel_labels])
 
 Look how well t-SNE separates the data into distinct clusters compared to PCA! Generally, it is best practice to try both PCA and t-SNE, along with other methods, when trying to perform dimension reduction techniques for visualizaiton and exploration.
 
+## Advantages
+
+- Better at distinguishing patterns and clusters than PCA
+- Works better to find relationships that are *non-linear*
+- Avoids the "crowding" problem
+
+## Disadvantages
+
+- Results can depend on the random starting values of $Y_i$ chosen
+- Computationally expensive (infeasible for data sets with n >> 10,000)
+- The method does not actually assign points to clusters, in the same manner that your basic k-means or your convex clustering methods would. The idea here is just to find the low-dimenisonal representation that best maintains relative pairwise distances between the points. If we want to get automatically assigned clusters, we could then run a clustering algorithm on the low-dimensional representation returned by t-SNE.
+
 # References
 
 Gaujoux, Renaud. “Generating Heatmaps for Nonnegative Matrix Factorization.” CRAN, 6 Feb. 2018, cran.r-project.org/web/packages/NMF/vignettes/heatmaps.pdf.
