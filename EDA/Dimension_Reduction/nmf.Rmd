@@ -75,14 +75,17 @@ By doing this, we can see 4 distinct clusters of words from our original data se
 
 ## Advantages
 
-- Works with non-negative data
+- Very interpretable with non-negative data
 - Pattern recognition
 - Works well for text-data and image data
+- Good for archetypal analysis
 
 ## Disadvantages
 
-- Strong assumptions about data
-- Can only extract linear patterns
+- Local & non-unique solution
+- No ordering of components
+- Heavily depends on value of K (number of components)
+- No closed form solution
 
 # References
 

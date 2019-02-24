@@ -57,11 +57,13 @@ We can see nice clear clusters arise from our projections using MDS. It is impor
 - Only need distance matrix and not original data
 - Identifies clusters & pattern recognition
 - Flexible to different distance metrics
-- Visualizes in 2-D very well
+- Visualizes proximities
 
 ## Disadvantages
 
-- Varies depending on distance metric
+- Arbitrary maps
+- No clear method of choosing stress function
+- Performs poorly in high-dimensional settings p >> n
 
 # References
 
