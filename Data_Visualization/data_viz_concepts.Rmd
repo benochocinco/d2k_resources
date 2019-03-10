@@ -40,13 +40,13 @@ They say that a picture is worth a thousand words. However, they often fail to e
 
 ## Motivating Examples
 
-![Numbers are hard.](bad_chart_1.png){width=400px}
+![Numbers are hard.](figures/bad_chart_1.png){width=400px}
 
 \newpage
 
-![3D stacked scatter pie columns. Interpretable.](bad_chart_2.png){width=350px}
+![3D stacked scatter pie columns. Interpretable.](figures/bad_chart_2.png){width=350px}
 
-![Flipped y-axis. Misleading (intentionally?), as it looks like murders drop after 2005 at first glance.](bad_chart_3.png){width=300px}
+![Flipped y-axis. Misleading (intentionally?), as it looks like murders drop after 2005 at first glance.](figures/bad_chart_3.png){width=300px}
 
 # Aesthetics
 
@@ -99,11 +99,11 @@ Another guiding principle for good, concise data visualizations is that our grap
 
 Below, we see two graphs that show the exact same information on diamond prices. However, the graph on the left has a lot of extra ink not dedicated to the data that only serves to distract the reader from the information presented (while also lacking an x and y axis!). 
 
-![So much wasted data ink.](data_ink.png){width=400px}
+![So much wasted data ink.](figures/data_ink.png){width=400px}
 
 One common accidental way that data ink is overused is when mapping a variable to more than one aesthetic. For example, in the graph below, both color and size convey the same information. Using one or the other would provide the exact same information.
 
-![Can you see repetitive aesthetics?](multiple_problems.png){width=400px}
+![Can you see repetitive aesthetics?](figures/multiple_problems.png){width=400px}
 
 \newpage
 
@@ -151,7 +151,7 @@ Not particularly easy to see the `Disposition` color scale now, is it? While it 
 
 When we map color to a continuous variable, we generally use a color gradient to represent our scale. We want the choice of the values of the gradient to be intuitive to the reader so that the reader has an easier time understanding the graph. For example, in the graph below, the color gradient changes in hue. This may not be a very intuitive choice, since there is not really a meaningful association between the color gradient of blue to red to yellow and the numeric scale from 0 to 0.5. What might make more sense is to have a color saturation or color value gradient, e.g. having a gradient going from light blue to dark blue, or white to blue, as this is much more intuitive with respect to having a "low" vs. "high" values. Another common case is the case where we want a color gradient from -1 to 1; in this situation, we might have a gradient that goes from blue to white to red, in order to represent "large negative" vs. "near 0" vs "large positive" values.
 
-![Is this color gradient intuitive?](multiple_problems.png){width=400px}
+![Is this color gradient intuitive?](figures/multiple_problems.png){width=400px}
 
 ## Colors as Groupings
 

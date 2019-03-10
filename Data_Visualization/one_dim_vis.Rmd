@@ -92,7 +92,7 @@ Pie charts are almost universally hated by statisticians. In general, there is r
 
 Rose plots are bar charts plotted in polar coordinates. This is useful in the very specific case when the categories in your bar charts are directions in a circle. This most commonly occurs in meterology and geology, where directions of movement are commonly studied. An example from the Internet is shown below from an actually relevant application. To do this in `ggplot`, one can simply add `+ coord_polar()` to a barplot geometry.
 
-![Rose plot example.](rose_freq_sm2.png){width=400px}
+![Rose plot example.](figures/rose_freq_sm2.png){width=400px}
 
 \newpage
 
