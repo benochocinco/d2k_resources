@@ -1,3 +1,3 @@
-# d2k_resources
+# D2K Course Modules
 
-This is a test.
+In this repository is a collection of course resources, example work, and guides to help you through some of the most common data science topics you will encounter in D2K courses.
