@@ -1,0 +1,171 @@
+---
+title: "Multiple Comparisons Example"
+author: "D2K Course Staff"
+date: "`r format(Sys.time(), '%B %d %Y')`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+library(knitr) # We need the knitr package to set chunk options
+library(tidyverse)
+
+# Set default knitr options for knitting code into the report:
+opts_chunk$set(echo=TRUE,  # change to FALSE to keep code out of the knitted document
+               cache=FALSE, # re-run code that has already been run?
+               autodep=TRUE, # assure that caching dependencies are updated correctly
+               cache.comments=FALSE, # do not re-run a chunk if only comments are changed
+               message=FALSE, # change to FALSE to keep messages out of the knitted document
+               warning=FALSE,  # change to FALSE to keep warnings out of the knitted document
+               comment = NA,
+               tidy.opts=list(width.cutoff=65))
+
+theme1 <- theme_bw() +
+  theme(axis.text = element_text(size = 8, colour = "#6b3447"),
+        axis.title = element_text(size = 10, colour = "#2f2f63"),
+        legend.title = element_text(size = 8, colour = "#2f2f63"),
+        legend.text = element_text(size = 8, colour = "#6b3447"), 
+        title = element_text(size = 12, colour = "#2f2f63"), 
+        axis.ticks = element_line(colour = "#6b3447"),
+        plot.caption = element_text(size = 8, colour = "#2f2f63"),
+        plot.subtitle = element_text(size = 10, colour = "#2f2f63"))
+```
+
+# Introduction
+
+Normally, when doing a hypothesis test, we select a critical level $\alpha$, typically 0.05, at which we reject the null hypothesis. However, if we are running a large batch, or a family, of hypothesis tests, we need to make adjustments to control the overall rate of false positives. If we were to use the typical $\alpha$ = 0.05 critical lev for every single hypothesis test hat we were running, we would expect to make a Type I error once for every 20 tests we run! Similarly, the probablility that we don't make at least one type I error in 20 indepndent hypothesis tests at $\alpha$ = 0.05 is about 0.6. Thus, we have to make adjustments for multiple comparisons in order to control the overall rate at which we will make a Type I error throughout all of our tests.Below, we show examples of different multiple comparisons adjustment procedures. These are generally viewed under the frameworks of the familywise error rate or the false discoery rate, explained below.
+
+One important thing to note here is that all of these procedures rely on the researcher knowing exactly the family of tests he/she want to run before running all of them and applying the corrections. Essentailly, we can not sequentially run hypothesis tests chosen based on the results of previous tests and then just apply multiple correction corections at the end; peeking is cheating!
+
+
+## Data
+
+For the examples below, we will be using the `msleep`data set from the `ggplot2` package. This data set contains information on the sleep times, physical attributes, and taxonomy of 83 different mammals. We will run hypothesis tests for pairwise comparisons of carnivores, herbivores, insectivores, and omnivores based on their average REM sleep and sleep cycle times. This will result in a total of 12 tests. (If you look at the code, a few numbers are changed for the sake of the example.) The results of these t tests are shown below in increasing order of p-value.
+
+```{r}
+data(msleep)
+head(msleep)
+
+```
+
+```{r echo = FALSE}
+types <- c("herbi", "omni", "carni", "insecti")
+comps <- c("sleep_rem", "sleep_cycle")
+
+tests <- c()
+pvals <- c()
+for (ii in 1:length(types)) {
+  for(jj in 1:length(types)){
+    if (ii <= jj){
+      next
+    }
+    for(kk in 1:length(comps)){
+      tests <- c(tests, paste(comps[kk], "for", types[ii], "vs.", types[jj]))
+      pvals <- c(pvals, t.test(dplyr::filter(msleep, vore == types[ii])[[comps[kk]]], 
+             dplyr::filter(msleep, vore == types[jj])[[comps[kk]]])$p.value)
+    }
+  }
+}
+
+p_res <- data.frame(test = tests, pvalue = pvals)
+p_res[9, 2] <- 0.00468792
+p_res[8, 2] <- 0.00498472
+kable(arrange(p_res, pvalue), col.names = c("Test", "P-Value"))
+```
+
+
+# Familywise Error Rate
+
+One of the ways we can control our overall Type I error rate is by controlling the familywise error rate. This is defined as the probability of making at least one type I error out of all of our hypothesis tests, i.e. $$FWER = P(\text{\# of Type I errors} > 0).$$ Under this framework, we want the familywise error rate to be less than some chosen critical level $\alpha$.
+
+## Bonferroni
+
+The simplest and most widely-known correction for multiple comparisons is to use the Bonferroni correction. This simply adjusts the critial value of each individual test to be $\frac{\alpha}{n}$, where $n$ is the number of tests we want to run and $\alpha$ is the desired familywise error rate. This is commonly used because of its simplicity and because it is guaranteed to control the familywise error rate under no assumptions about the dependency structure of the hypothesis tests (by Boole's inequality). However, this is an extremely conservative correction; if one wanted to run even a moderately sized number of tests, rejecting the null hypothesis in each individual test would be practically impossible.
+
+For the `msleep` data, if we wanted an $\alpha$ level of 0.05, our Bonferroni-corrected p-value for each individual test would be 0.05/12 =  0.00416; under this, only ome null hypotheses would be rejected.
+
+
+## Holm
+
+The Holm procedure is known as the "step down" correction procedure. This is because the general idea is to reject null hypotheses in order of increasing p-value until we reach one that does not fall below its specified threshold. Formally, if we have $k \in 1, ..., n$ tests and a critical level $\alpha$, the Holm method proceeds as:
+
+\begin{enumerate}
+  \item Order p-values of all tests from smallest to largest (i.e., $p_{(1)}, p_{(2)} ..., p_{(n)}$).
+  \item Calculate $\frac{\alpha}{n + 1 - k}$ for $k \in 1, ..., n$.
+  \item Step down the list of p-values starting from the top until we find the first test such that $p_{(k)} > \frac{\alpha}{n + 1 - k}$.
+  \item Reject the null hypotheses for the tests above, i.e. $p_{(1)}, p_{(2)} ..., p_{(k-1)}$.
+\end{enumerate}
+
+This test has is UMP over the Bonferroni test, meaning that we can guarantee the same Type I error control but with smaller Type II error probability. The only downside is that it is more complicated to implement. Below, we see this applied to the tests from the `msleep` data. We would stop after the first hypothesis test was rejected, since $p_{(2)} > \frac{\alpha}{11}$ is the first test outside the critical region.
+
+```{r echo = FALSE}
+holm_p <- arrange(p_res, pvalue)
+holm_p$holm_stat <- rev(0.05 / c(1:12))
+kable(holm_p, col.names = c("Test", "P-Value", "Holm"))
+```
+
+## Hochberg
+
+On the other hand, the Hochberg procedure is known as the "step up" correction procedure. This is because the general idea is to not reject null hypotheses in order of dcreasing p-value until we reach one that falls below its specified threshold. Formally, if we have $k \in 1, ..., n$ tests and a critical level $\alpha$, the Hochberg's method proceeds as:
+
+\begin{enumerate}
+  \item Order p-values of all tests from smallest to largest (i.e., $p_{(1)}, p_{(2)} ..., p_{(n)}$).
+  \item Calculate $\frac{\alpha}{n + 1 - k}$ for $k \in 1, ..., n$.
+  \item Step up the list of p-values from the bottom until we find the first test such that $p_{(k)} < \frac{\alpha}{n + 1 - k}$.
+  \item Reject the null hypotheses for that test and tests above, i.e. $p_{(1)}, p_{(2)} ..., p_{(k)}$.
+\end{enumerate}
+
+Below, we see the Hochberg procedure applied to the tests from the `msleep` data. We would reject the null hypothesis for the top 3 tests since $p_{(3)} < \frac{\alpha}{10}$ is the first test inside the critical region.
+
+```{r echo = FALSE}
+hoch_p <- arrange(p_res, pvalue)
+hoch_p$hoch_stat <- rev(0.05 / c(1:12))
+kable(hoch_p, col.names = c("Test", "P-Value", "Hochberg"))
+```
+
+In general, the Hochberg procedure has higher power, i.e. we are more likely to reject $H_0$ when it is actually false. However, it assumes that the tests are independent. In fact, the Hochberg procedure is actually not guaranteed to be a universal level $\alpha$ test when the assumption is violated. In particular, the Hochberg procedure fails to limit the FWER below $\alpha$ when there is a strong negative correlation between tests.
+
+## Tukey Correction
+
+Another method to note is Tukey's Honestly Significant Different (HSD). This method specifically applies to a situation where we want to compare multiple groups of a categorical variable based on the same continuous variable. This is essentially two-sample t-test where we want to test: $$H_0: \mu_i = \mu_j$$ $$H_a: \mu_i \neq \mu_j$$ for all different pairings of groups. If all group means are the same, the distribution of the test statistics $\mu_i - \mu_j$ follow what is called a studentized range distribution. Look it up if you're interested.
+
+Tukey's HSD is most commonly used after an ANOVA test shows that there is a satistically significant difference in means amongst the groups. We want to make pairwise comparisons between all groups. to find exactly which groups are different, which is where the multiple comparisons come in. Just like ANOVAs, this test assumes normailty, homogeneity of variance, and independence. Below, we compare the REM sleep lengths for all of the different animal diet types. The ANOVA shows that the diet has a significant relationship with mean REM sleep time; the Tukey's HSD shows that the only the difference between omnivores and herbivores is statistically significant.
+
+```{r}
+eat <- aov(msleep$sleep_rem ~ msleep$vore)
+
+## Anova summary
+summary(eat)
+
+## Tukey result
+TukeyHSD(eat)
+```
+
+
+# False Discovery Rate
+
+Another way we can control our overall Type I error rate is by controlling the false discovery rate. The false discovery rate is defined as the expeted proportion of false positives out of all tests that are declared significant, i.e. $$FDR = E\left[ \frac{\#(H_0 \text{ rejected } \cap H_0 \text{ is true})}{(\#H_0 \text{ rejected } \cap H_0 \text{ is true}) + \# (H_0 \text{ rejected } \cap H_0 \text{ is false})}\right].$$ In this case, we want the false discovery rate to be less than some chosen critical level $\alpha$.
+
+## Benjamini-Hochberg
+
+The most common way to control the false discovery rate is via the Benjamini-Hochberg procedure. This is related to the Hochberg step-up procedure in that the process of finding which null hypotheses to reject is similar.  Formally, if we have $k \in 1, ..., n$ tests and a critical level $\alpha$, the method proceeds as:
+
+\begin{enumerate}
+  \item Order p-values of all tests from smallest to largest (i.e., $p_{(1)}, p_{(2)} ..., p_{(n)}$).
+  \item Calculate $\frac{\alpha k}{n}$ for $k \in 1, ..., n$.
+  \item Step up the list of p-values from the bottom until we find the first test such that $p_{(k)} < \frac{\alpha}{n + 1 - k}$.
+  \item Reject the null hypotheses for that test and tests above, i.e. $p_{(1)}, p_{(2)} ..., p_{(k)}$.
+\end{enumerate}
+
+Like the Hochberg procedure above,, the Bejamini-Hochberg procedure assumes the independence of the hypothesis tests and can fail when there is a strong negative correlation between tests. Below, we see the proceudre applied to the p-values from the tests run on the `msleep` data.
+
+```{r echo = FALSE}
+bhoch_p <- arrange(p_res, pvalue)
+bhoch_p$bhoch_stat <- seq(0.05/12, 0.05, length.out = 12)
+kable(hoch_p, col.names = c("Test", "P-Value", "Hochberg"))
+```
+
+We would reject the null hypothesis for the top 5 tests since $p_{(5)} < \frac{5 \alpha}{12}$ is the first test inside the critical region.
+
+## Benjaimin-Hochberg-Yekutieli
+
+The Benjamini-Hochberg-Yekutieli procedure extends the Benjaimin-Hochberg procedure above by adjusting for any possible correlations between the hypothesis tests, relaxing the independence assumption. The method is exactly the same, except that our threshold is now  $\frac{\alpha k}{c \times n}$, where  $c = \sum_{k = 1}^m \frac{1}{k}$.
