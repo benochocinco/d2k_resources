@@ -1,0 +1,279 @@
+---
+title: "Bootstrapping Method Example"
+author: "D2K Course Staff"
+date: "`r format(Sys.time(), '%B %d %Y')`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+library(knitr) # We need the knitr package to set chunk options
+library(tidyverse)
+library(gridExtra)
+
+# Set default knitr options for knitting code into the report:
+opts_chunk$set(echo=FALSE,  # change to FALSE to keep code out of the knitted document
+               cache=FALSE, # re-run code that has already been run?
+               autodep=TRUE, # assure that caching dependencies are updated correctly
+               cache.comments=FALSE, # do not re-run a chunk if only comments are changed
+               message=FALSE, # change to FALSE to keep messages out of the knitted document
+               warning=FALSE,  # change to FALSE to keep warnings out of the knitted document
+               comment = NA,
+               tidy.opts=list(width.cutoff=65))
+
+theme1 <- theme_bw() +
+  theme(axis.text = element_text(size = 8, colour = "#6b3447"),
+        axis.title = element_text(size = 10, colour = "#2f2f63"),
+        legend.title = element_text(size = 8, colour = "#2f2f63"),
+        legend.text = element_text(size = 8, colour = "#6b3447"), 
+        title = element_text(size = 12, colour = "#2f2f63"), 
+        axis.ticks = element_line(colour = "#6b3447"),
+        plot.caption = element_text(size = 8, colour = "#2f2f63"),
+        plot.subtitle = element_text(size = 10, colour = "#2f2f63"))
+
+library(boot)
+data("urine")
+data("economics")
+data("msleep")
+```
+
+# Introduction
+
+When analyzing datasets, we want to maximize the probability that our discoveries or insights will hold true for future, yet-to-be-seen data. One of the ways that this can be done is through a procedure called **bootstrapping**. The basic idea is to replicate the process of gathering "new data" by simply resampling  *with replacement*  some facet of the data set that we already have. This saves the time and effort of collecting new data in order to validate our results, or losing out on statistical power from holding out a portion of our data. Below, we look at some examples of different bootstrapping methods and discuss when they should be applied.
+
+\newpage
+
+# Case Resampling
+
+The most widely-used bootstrapping method is case resampling. With this method, we resample entire rows of observations with replacement and . Specifically, the procedure works as follows:
+
+\begin{enumerate}
+  \item Fit our desired model to the original data set; get estimated parameters from this original model.
+  \item Run $k$ bootstrap iterations. For each iteration:
+  \begin{enumerate}
+    \item Resample observations with replacement at size $n$.
+    \item Fit desired model on resampled data set.
+    \item Record new parameter estimates on resampled data set.
+  \end{enumerate}
+  \item Use our collection of $k$ parameter estimates in order to make some sort of statement about the stability of our estimates.
+\end{enumerate}
+
+In this example, we fit a logistic regression model to the `biopsy` data set from the `MASS` package. We will try to predict the class of cancer based on the predictor variables in the data.
+
+```{r}
+library(MASS)
+data(biopsy)
+head(biopsy)
+```
+
+```{r}
+# Fit model
+mod1 <- glm(class ~ ., data = biopsy[, -1], family = "binomial")
+summary(mod1)
+```
+
+Normally, one might just use the p-values from the output of the model to do inference on whether each parameter is not equal to 0 in the model. This, however, relies on the assumption that the residuals are Gaussian distributed. Instead, we an use bootstrapping to obtain a nonparametric confidence interval by bootstrap resampling.
+
+```{r}
+# Run bootstraps
+set.seed(317)
+resamp_1 <- replicate(1000, sample(1:nrow(biopsy), nrow(biopsy), replace = TRUE))
+new_coef <- matrix(NA, 10, ncol(resamp_1))
+for(ii in 1:ncol(resamp_1)){
+  new_dat <- biopsy[resamp_1[, ii], -1]
+  new_mod1 <- glm(class ~ ., data = new_dat, family = "binomial")
+  new_coef[, ii] <- coef(new_mod1)
+}
+```
+
+We can then look at the distribution of the variable coefficients in the bootstrap samples; we can also calculate the empirical p-value of the coefficient estimate.
+
+```{r}
+ggplot() +
+  geom_histogram(aes(x = new_coef[9, ]),
+                 color = "black") +
+  geom_vline(xintercept = 0, color = "red") +
+  labs(x = "Coef Value",
+       y = "Count",
+       title = "Normal Nucleoli Bootstrap Coefficients") +
+  theme1
+
+sum(new_coef[9, ] < 0) / 1000
+```
+
+In this case, 39 out of 10000 estimates were less than 0. This is equivalent to a p-value of 0.078 for a two-sided t-test. We can also look at the quantiles of the parameter estimate distribution to get a 95% confidence interval:
+
+```{r}
+print(c(quantile(new_coef[9, ], 0.025), quantile(new_coef[9, ], 0.975)))
+```
+
+
+## When Does This Fail?
+
+Case resampling will cover your model validation needs in almost all cases. Use it unless you have a good reason not to. However, there do exist some situations for which case resampling will fail. The method relies on the assumption that the observations in your data set are independently and identically distributed. Additionally, we inherently assume that both the original and new data sets are representative samples of the entire population. When these are violated, the results we get from case resampling may not be valid (or we may not even be able to get any results!)
+
+\newpage
+
+# Residual Resampling
+
+In some cases, case resampling will not be representative of the original data set. This most likely will occur when the model contains categorical variables that have one or more small categories. Thus, when resampling, there is a nontrivial probability that not all of the categories of the variable will be represented in the new data set, meaning that the fitted model will be different from the original one. In this case, one might consider using residual bootstrapping. The process is as follows:
+
+\begin{enumerate}
+  \item Fit our desired model to the original data set; get estimated parameters from this original model.
+  \item Calculated the fitted values $\hat{y}$ and residuals $\hat{e}$ from the model and the data.
+  \item Run $k$ bootstrap iterations. For each iteration:
+  \begin{enumerate}
+    \item Resample residuals $\hat{e}$ with replacement at size $n$.
+    \item Add resampled residuals to fitted values $\hat{y}$.
+    \item Fit desired model on new data set.
+    \item Record new parameter estimates on resampled data set.
+  \end{enumerate}
+  \item Use our collection of $k$ parameter estimates in order to make some sort of statement about the stability of our estimates.
+\end{enumerate}
+
+As an illustrative example, we will run residual bootstrapping on the `msleep` data set from `ggplot2`, predicting total hours slept based on diet using an ordinary linear regression model. If we look at a summary of the diet variable, we see that there are only 5 insectivores in the data set; thus, if we take many bootstrap samples of this data, we will likely end up with a data set with no insectivores. In this case, it might be more prudent to use residual resampling. (We will table a discussion on whether fitting this linear model is a good idea on principle.)
+
+```{r}
+data(msleep)
+
+table(msleep$vore)
+```
+
+```{r}
+# Fit linear regression model
+msleep2 <- dplyr::filter(msleep, !is.na(vore))
+mod2 <- lm(sleep_total ~ vore, data = msleep2)
+summary(mod2)
+```
+
+There appears to be a statistically significant difference between insectivores and carnivores, but not between carnivores and herbivores and omnivores. Let's test this with residual bootstrapping!
+
+```{r}
+# Get fitted values and residuals
+pred_mod2 <- predict(mod2)
+resid_mod2 <- resid(mod2)
+```
+
+```{r}
+# Reample residuals, rerun model
+set.seed(510)
+resamp_2 <- replicate(1000, sample(1:nrow(msleep2), nrow(msleep2), replace = TRUE))
+new_coef <- matrix(NA, 4, ncol(resamp_2))
+for(ii in 1:ncol(resamp_2)){
+  msleep2$new_dat <- resid_mod2[resamp_2[, ii]] + pred_mod2
+  new_mod2 <- lm(new_dat ~ vore, data = msleep2)
+  new_coef[, ii] <- coef(new_mod2)
+}
+```
+
+Below, we look at the results of bootstrap.
+
+```{r}
+ggplot() +
+  geom_histogram(aes(x = new_coef[2, ]),
+                 color = "black") +
+  geom_vline(xintercept = 0, color = "red") +
+  labs(x = "Coef Value",
+       y = "Count",
+       title = "Herbivore Bootstrap Coefficients") +
+  theme1
+
+sum(new_coef[2, ] > 0) / 1000
+```
+
+```{r}
+ggplot() +
+  geom_histogram(aes(x = new_coef[4, ]),
+                 color = "black") +
+  geom_vline(xintercept = 0, color = "red") +
+  labs(x = "Coef Value",
+       y = "Count",
+       title = "Omnivore Bootstrap Coefficients") +
+  theme1
+
+sum(new_coef[4, ] < 0) / 1000
+```
+
+Neither the herbivore or omnivore coefficients are statistically significantly different from 0, with p-values of about 0.5 and 0.7, respectively.
+
+```{r}
+ggplot() +
+  geom_histogram(aes(x = new_coef[3, ]),
+                 color = "black") +
+  geom_vline(xintercept = 0, color = "red") +
+  labs(x = "Coef Value",
+       y = "Count",
+       title = "Insectivore Bootstrap Coefficients") +
+  theme1
+
+sum(new_coef[3, ] < 0) / 1000
+```
+
+In this case, 13 out of 10000 estimates were less than 0. This is equivalent to a p-value of 0.026 for a two-sided t-test. The 95% confidence interval:
+
+```{r}
+print(c(quantile(new_coef[3, ], 0.025), quantile(new_coef[3, ], 0.975)))
+```
+
+We do see that the confidence interval does not include 0, again indicating statistical significance. 
+
+## Wild Bootstrap
+
+In the case of heteroskedasticity of residuals in the data, the wild bootstrap method can be used for bootstrapping. The general jist of the method is that, in addition to resampling the residuals, we multiply each element by a random factor drawn from a known symmetric mean 0 distribution. A further explanation of the algorithm can be found in Davidson and Flachaire (2008).
+
+\newpage
+
+# Block Bootstrap
+
+The most common case where the iid assumption is violated in data we would like to bootstrap is in the case of time series data. For these types of data sets, we generally assume that there is some autocorrelation in the variables - see the VAR example for more details. This means that we can not independently resample the observations to create a new data set, since this will destroy any time-related structure in the data. In this case, we use a block bootstrap procedure. The idea is similar to case resampling as explained above; however, instead of resampling individual observations, we divide the data in to (possibly overlapping) blocks of observations, then create new data sets by resampling the blocks. This allows most of the time series structure to be preserved.
+
+In R, the block bootstrap can be run using the `tsboot` function in the `boot` package, with some code finagling. In general, the standard block length is $n^{1/3}$ and we create either blocks of all the same size or blocks of a random size that is geometrically distributed. 
+
+In the example below, we analyze the `economics` data set from the `ggplot2` package. We will try to fit an autoregressive model to the monthly unemployment rate. We will estimate coefficients up to a lag of order 5 for the purposes of illustration.
+
+
+```{r}
+arima(economics$unemploy, c(5, 0, 0))
+```
+
+According to the output, time lags 1, 2, and 5 are statistically significant.
+
+```{r}
+minifunc <- function(ts){
+  ts_mod <- coef(arima(ts, c(5, 0, 0)))
+  return(ts_mod)
+}
+
+boot_mod2 <- tsboot(economics$unemploy, minifunc, 1000, 
+       sim = "geom", l = length(economics$unemploy)^(1/3))
+
+```
+
+```{r}
+results_df <- data.frame(mean = colMeans(boot_mod2$t),
+                         se = apply(boot_mod2$t, 2, sd))
+
+rownames(results_df) <- c("AR1", "AR2", "AR3", "AR4", "AR5", "Intercept")
+kable(results_df, col.names = c("Estimate", "Standard Error"))
+```
+
+The block bootstrap shows that only the 1st order lag is statistically significant to predit unemployment rate at the current time.
+
+\newpage
+
+# Parametric Bootstrap
+
+One other method that is mentioned here is the parametric bootstrap. This method uses the assumed distribution of the parameter estimates as the basis for resampling. The process for this is as follows:
+
+\begin{enumerate}
+  \item Fit our desired model to the original data set; get estimated parameters from this original model.
+  \item Run $k$ bootstrap iterations. For each iteration:
+  \begin{enumerate}
+    \item Resample the estimated parameters using the assumed distribution.
+    \item Generate a new data set from these new parameters.
+    \item Refit the desired model to this new generated data set.
+    \item Record new parameter estimates on generated data set.
+  \end{enumerate}
+  \item Use our collection of $k$ parameter estimates in order to make some sort of statement about the stability of our estimates.
+\end{enumerate}
+
+It is not recommended to use this method. In general, bootstrapping allows us to get a sense of the variability or stability of our discoveries without making any distributional assumptions. Thus, this method defeats the purpose of bootstrapping itself. We will not glorify this method with an example, because it doesn't deserve it.
