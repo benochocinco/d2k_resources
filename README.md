@@ -31,7 +31,7 @@ In this repository is a collection of course resources, example work, and guides
 * *boosting.pdf* - basics of boosting for regression or classification.
 * *decision_trees.pdf* - basics of fitting regression/classification trees.
 * *lda_and_nb.pdf* - linear discriminant analysis and naive Bayes models for classification.
-* *linear_regression_with_penalties.Rmd* - Lasso, ridge, elastic net regression. Used to fit sparse regression models.
+* *linear_regression_with_penalties.pdf* - Lasso, ridge, elastic net regression. Used to fit sparse regression models.
 * *logistic_regression_with_penalties.pdf* - extensions of above to generalized linear models.
 * *support_vector_machines.pdf* - SVM models for classification.
 
