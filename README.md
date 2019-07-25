@@ -22,7 +22,25 @@ In this repository is a collection of course resources, example work, and guides
 
 ## EDA
 
+### Clustering
+
+* *basic_clustering.pdf* - k-means, hierarchical clustering.
+* *convex_clustering.pdf* - a more modern method for finding clusters.
+
+### Dimension Reduction
+
+* *mds.pdf* - multidimensional scaling. Focuses on minimizing total distance between points.
+* *nmf.pdf* - non-negative matrix factorization. Incorporates a non-negativity constraint.
+* *pca.pdf* - principal components analysis. The most basic dimension reduction method.
+* *tsne.pdf* - stochastic neighbor embedding. Focuses on preserving similarity between distribution of points in space.
+
 ## Hypothesis Testing
+
+* *anova.pdf* - introduction to hypothesis testing for equivalence of means for more than two groups. One-way ANOVA, two-way ANOVA, MANOVA, ANCOVA.
+* *bootstrapping.pdf* - the ins and outs of nonparametric bootstrapping, i.e. using resampling .
+* *multiple_testing.pdf* - procedures for adjusting p-values when conducting multiple hypothesis tests on the same data,
+* *NP_hypo_tests.pdf* - nonparametric hypothesis testing, when the assumption of Gaussian-distributed residuals is severly violated.
+* *t_tests.pdf* - simple 2 way t-tests for comapring differences in means and proportions
 
 ## Predictive Modeling
 
