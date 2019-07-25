@@ -33,7 +33,7 @@ theme1 <- theme_bw() +
 
 # Introduction
 
-Parametric functions can take you pretty far in the world of regression. Many problems can be fairly well-described by fitting a line on some transformed version of your data, or by fitting a polynomial regression line. However, there will come a point in your life where linear regression simply isn't good enough anymore. One day, you'll be sitting at your computer, fitting a regression, and you'll realize that no transformation works because the relationship between the response and predictors simply doesn't follow a nice parametric shape. That residual plot will never look IID, not in a million years, no matter what you try. What will you do then? Are you out of luck? Is disaster forthcoming? Is all possible hope been lost?
+Parametric functions can take you pretty far in the world of regression. Many problems can be fairly well-described by fitting a line on some transformed version of your data, or by fitting a polynomial regression line. However, there will come a point in your life where linear regression simply isn't good enough anymore. One day, you'll be sitting at your computer, fitting a regression, and you'll realize that no transformation works because the relationship between the response and predictors simply doesn't follow a nice parametric shape. That residual plot will never look IID, not in a million years, no matter what you try. What will you do then? Are you out of luck? Is disaster forthcoming? Has all possible hope been lost?
 
 No. No it is not. Because you are a smart data scientist, and you know in this case that you should use a smoothing spline regression. 
 
